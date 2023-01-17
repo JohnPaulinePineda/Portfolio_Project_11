@@ -2911,7 +2911,7 @@ BTREE_Test
 
 ```
 
-###  1.5.16 Model Evaluation Summary
+##  1.6 Model Evaluation Summary
 |
 | Model performance comparison:
 |
@@ -2981,7 +2981,7 @@ print(Accuracy_Summary, row.names=FALSE)
 
 ```
 
-##  1.6 References
+##  1.7 References
 |
 | **[Book]** [Applied Predictive Modeling](http://appliedpredictivemodeling.com/) by Max Kuhn and Kjell Johnson
 | **[Book]** [An Introduction to Statistical Learning](https://www.statlearning.com/) by Gareth James, Daniela Witten, Trevor Hastie and Rob Tibshirani
