@@ -2923,7 +2923,7 @@ BTREE_Test
 |      **[A.3]** C50: C5.0 Decision Trees (<mark style="background-color: #CCECFF">**C50**</mark> and <mark style="background-color: #CCECFF">**plyr**</mark> packages)
 |             **[A.1.1]** Cross-Validation Accuracy = 0.80650, Test Accuracy = 0.79746 
 |
-```{r section_1.5.16, warning=FALSE, message=FALSE}
+```{r section_1.6, warning=FALSE, message=FALSE}
 ##################################
 # Consolidating all evaluation results
 # for the train and test sets
