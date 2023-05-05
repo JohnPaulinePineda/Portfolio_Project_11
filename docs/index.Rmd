@@ -16,7 +16,9 @@ knitr::opts_chunk$set(echo = TRUE, fig.width=15, fig.height=10)
 ```
 # **1. Table of Contents**
 |
-| This document presents a non-exhaustive list of modelling techniques for predicting multiclass categorical responses using various helpful packages in <mark style="background-color: #CCECFF">**R**</mark>.    
+| This document presents a non-exhaustive list of modelling techniques for predicting multiclass categorical responses using various helpful packages in <mark style="background-color: #CCECFF">**R**</mark>. 
+|
+| Multiclass classification learning refers to a predictive modelling problem where more than two class labels are predicted for a given sample of input data. These models use the training data set and calculate how to best map instances of input data to the specific class labels. multiclass classification does not have the notion of normal and abnormal outcomes. Instead, instances are classified as belonging to one among a range of known classes. It is common to model a multiclass classification task with a model that predicts a Multinoulli probability distribution for each instance. The Multinoulli distribution is a discrete probability distribution that covers a case where an event will have a categorical outcome. For classification, this means that the model predicts the probability of an instance belonging to each class label. The algorithms applied in this study (mostly contained in the <mark style="background-color: #CCECFF">**caret**</mark> package) attempt to categorize the input data and form polytomous groups based on their similarities. 
 |
 ##  1.1 Sample Data
 |
