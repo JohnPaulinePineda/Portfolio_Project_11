@@ -1281,6 +1281,8 @@ EDA.Bar.Source.FactorVar.Prop.Group1 <- rbind(EDA.PropTable.Function(names(EDA.B
 
 ###  1.5.1 Penalized Multinomial Regression (PMR)
 |
+| [Penalized Multinomial Regression](https://link.springer.com/book/10.1007/978-0-387-21706-2) fits multinomial log-linear models via neural networks. The algorithm is structured as a neural network with a single output layer consisting of multiple neurons, each representing a different class of the response variable. The output layer applies a softmax function as an activation function ensuring that the output values of the neurons representing the different categories sum up to one and can be interpreted as probabilities for each category. During training, the model learns a set of weights for each feature, as well as a bias term for each class in the output layer. The weights and bias terms are estimated using maximum likelihood. The learned weights and biases are applied to new data to make predictions.
+|
 | **[A]** The penalized multinomial regression model from the <mark style="background-color: #CCECFF">**nnet**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
 |
 | **[B]** The model contains 1 hyperparameter:
