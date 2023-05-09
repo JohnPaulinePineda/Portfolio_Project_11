@@ -2058,7 +2058,7 @@ AVNN_Test
 
 ###  1.5.8 Support Vector Machine - Radial Basis Function Kernel (SVM_R)
 |
-| [Support Vector Machine](http://www.cs.cmu.edu/~pakyan/compbio/references/Drucker_NIPS_1996.pdf) plots each observation in an N-dimensional space corresponding to the number of features in the data set and finds a hyperplane that maximally separates the different classes by a maximally large margin (which is defined as the distance between the hyperplane and the closest data points from each class). The algorithm applies kernel transformation by mapping non-linearly separable data using the similarities between the points in a high-dimensional feature space for improved discrimination.
+| [Support Vector Machine](https://dl.acm.org/doi/10.1145/130385.130401) plots each observation in an N-dimensional space corresponding to the number of features in the data set and finds a hyperplane that maximally separates the different classes by a maximally large margin (which is defined as the distance between the hyperplane and the closest data points from each class). The algorithm applies kernel transformation by mapping non-linearly separable data using the similarities between the points in a high-dimensional feature space for improved discrimination.
 |
 | **[A]** The support vector machine (radial basis function kernel) model from the  <mark style="background-color: #CCECFF">**kernlab**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
 |
@@ -2168,7 +2168,7 @@ SVM_R_Test
 
 ###  1.5.9 Support Vector Machine - Polynomial Kernel (SVM_P)
 |
-| [Support Vector Machine](http://www.cs.cmu.edu/~pakyan/compbio/references/Drucker_NIPS_1996.pdf) plots each observation in an N-dimensional space corresponding to the number of features in the data set and finds a hyperplane that maximally separates the different classes by a maximally large margin (which is defined as the distance between the hyperplane and the closest data points from each class). The algorithm applies kernel transformation by mapping non-linearly separable data using the similarities between the points in a high-dimensional feature space for improved discrimination.
+| [Support Vector Machine](https://dl.acm.org/doi/10.1145/130385.130401) plots each observation in an N-dimensional space corresponding to the number of features in the data set and finds a hyperplane that maximally separates the different classes by a maximally large margin (which is defined as the distance between the hyperplane and the closest data points from each class). The algorithm applies kernel transformation by mapping non-linearly separable data using the similarities between the points in a high-dimensional feature space for improved discrimination.
 |
 | **[A]** The support vector machine (polynomial kernel) model from the  <mark style="background-color: #CCECFF">**kernlab**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
 |
@@ -3084,7 +3084,7 @@ print(Accuracy_Summary, row.names=FALSE)
 | **[Publication]** [Discriminant Analysis by Gaussian Mixtures](https://rss.onlinelibrary.wiley.com/doi/10.1111/j.2517-6161.1996.tb02073.x) by Trevor Hastie and Robert Tibshirani (Journal of the Royal Statistical Society)
 | **[Publication]** [Who Discovered Bayes's Theorem?](https://www.jstor.org/stable/2682766) by Stephen Stigler (The American Statistician)
 | **[Publication]** [Diagnosis of Multiple Cancer Types by Shrunken Centroids of Gene Expression](https://pubmed.ncbi.nlm.nih.gov/12011421/) by Robert Tibshirani, Trevor Hastie, Balasubramanian Narasimhan and Gilbert Chu (Proceedings of the National Academy of Sciences of the United States of America)
-| **[Publication]** [Support Vector Regression Machines](http://www.cs.cmu.edu/~pakyan/compbio/references/Drucker_NIPS_1996.pdf) by Harris Drucker, Chris Burges, Linda Kaufman, Alex Smola and Vladimir Vapnik (Advances in Neural Information Processing Systems)
+| **[Publication]** [A Training Algorithm for Optimal Margin Classifiers](https://dl.acm.org/doi/10.1145/130385.130401) by Bernhard Boser, Isabelle Guyon and Vladimir Vapnik (Proceedings of the Fifth Annual Workshop on Computational Learning Theory)
 | **[Publication]** [Nearest Neighbor Pattern Classification](https://ieeexplore.ieee.org/document/1053964) Thomas Cover and Peter Hart (IEEE Transactions on Information Theory)
 | **[Publication]** [Classification and Regression Trees](https://www.semanticscholar.org/paper/Classification-and-Regression-Trees-Breiman-Friedman/8017699564136f93af21575810d557dba1ee6fc6) by Leo Breiman, Jerome Friedman, Richard Olshen, and Charles Stone (Computer Science)
 | **[Publication]** [Unbiased Recursive Partitioning: A Conditional Inference Framework](https://www.tandfonline.com/doi/abs/10.1198/106186006X133933) by Torsten Hothorn, Kurt Hornik and Achim Zeileis (Journal of Computational and Graphical Statistics)
