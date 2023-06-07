@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE, fig.width=15, fig.height=10)
 ```
 # **1. Table of Contents**
 |
-| This document presents a non-exhaustive list of modelling techniques for predicting multiclass categorical responses using various helpful packages in <mark style="background-color: #CCECFF">**R**</mark>. 
+| This project implements different predictive modelling procedures for multiclass categorical responses using various helpful packages in <mark style="background-color: #CCECFF">**R**</mark>. Models applied in the analysis to predict multiclass categorical responses included the **Penalized Multinomial Regression**, **Linear Discriminant Analysis**, **Flexible Discriminant Analysis**, **Mixture Discriminant Analysis**, **Naive Bayes**, **Nearest Shrunken Centroids**, **Averaged Neural Network**, **Support Vector Machine (Radial Basis Function Kernel, Polynomial Kernel)**, **K-Nearest Neighbors**, **Classification and Regression Trees**, **Conditional Inference Trees**, **C5.0 Decision Trees**, **Random Forest** and **Bagged Trees** algorithms. The resulting predictions derived from the candidate models were evaluated in terms of their classification performance using the accuracy metric.
 |
 | Multiclass classification learning refers to a predictive modelling problem where more than two class labels are predicted for a given sample of input data. These models use the training data set and calculate how to best map instances of input data to the specific class labels. Multiclass classification does not have the notion of normal and abnormal outcomes. Instead, instances are classified as belonging to one among a range of known classes. It is common to model a multiclass classification task with a model that predicts a Multinoulli probability distribution for each instance. The Multinoulli distribution is a discrete probability distribution that covers a case where an event will have a categorical outcome. For classification, this means that the model predicts the probability of an instance belonging to each class label. The algorithms applied in this study (mostly contained in the <mark style="background-color: #CCECFF">**caret**</mark> package) attempt to categorize the input data and form polytomous groups based on their similarities. 
 |
@@ -2948,11 +2948,11 @@ BTREE_Test
 | Model performance comparison:
 |
 | **[A]** The models which demonstrated the best and most consistent Accuracy metrics are as follows:
-|      **[A.1]** RF: Random Forest (<mark style="background-color: #CCECFF">**randomForest**</mark> package)
+|      **[A.1]** **RF: Random Forest** (<mark style="background-color: #CCECFF">**randomForest**</mark> package)
 |             **[A.2.1]** Cross-Validation Accuracy = 0.82131, Test Accuracy = 0.83861 
-|      **[A.2]** BTREE: Bagged Trees (<mark style="background-color: #CCECFF">**ipred**</mark>, <mark style="background-color: #CCECFF">**plyr**</mark> and <mark style="background-color: #CCECFF">**e1071**</mark> packages)
+|      **[A.2]** **BTREE: Bagged Trees** (<mark style="background-color: #CCECFF">**ipred**</mark>, <mark style="background-color: #CCECFF">**plyr**</mark> and <mark style="background-color: #CCECFF">**e1071**</mark> packages)
 |             **[A.2.1]** Cross-Validation Accuracy = 0.81078, Test Accuracy = 0.81329 
-|      **[A.3]** C50: C5.0 Decision Trees (<mark style="background-color: #CCECFF">**C50**</mark> and <mark style="background-color: #CCECFF">**plyr**</mark> packages)
+|      **[A.3]** **C50: C5.0 Decision Trees** (<mark style="background-color: #CCECFF">**C50**</mark> and <mark style="background-color: #CCECFF">**plyr**</mark> packages)
 |             **[A.3.1]** Cross-Validation Accuracy = 0.80650, Test Accuracy = 0.79746 
 |
 ```{r section_1.6, warning=FALSE, message=FALSE}
