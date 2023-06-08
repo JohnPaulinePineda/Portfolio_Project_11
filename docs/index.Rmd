@@ -2949,11 +2949,14 @@ BTREE_Test
 |
 | **[A]** The models which demonstrated the best and most consistent Accuracy metrics are as follows:
 |      **[A.1]** **RF: Random Forest** (<mark style="background-color: #CCECFF">**randomForest**</mark> package)
-|             **[A.2.1]** Cross-Validation Accuracy = 0.82131, Test Accuracy = 0.83861 
+|             **[A.2.1]** Cross-Validation Accuracy = 0.82131
+|             **[A.2.2]** Test Accuracy = 0.83861 
 |      **[A.2]** **BTREE: Bagged Trees** (<mark style="background-color: #CCECFF">**ipred**</mark>, <mark style="background-color: #CCECFF">**plyr**</mark> and <mark style="background-color: #CCECFF">**e1071**</mark> packages)
-|             **[A.2.1]** Cross-Validation Accuracy = 0.81078, Test Accuracy = 0.81329 
+|             **[A.2.1]** Cross-Validation Accuracy = 0.81078
+|             **[A.2.2]** Test Accuracy = 0.81329 
 |      **[A.3]** **C50: C5.0 Decision Trees** (<mark style="background-color: #CCECFF">**C50**</mark> and <mark style="background-color: #CCECFF">**plyr**</mark> packages)
-|             **[A.3.1]** Cross-Validation Accuracy = 0.80650, Test Accuracy = 0.79746 
+|             **[A.3.1]** Cross-Validation Accuracy = 0.80650
+|             **[A.3.2]** Test Accuracy = 0.79746 
 |
 ```{r section_1.6, warning=FALSE, message=FALSE}
 ##################################
