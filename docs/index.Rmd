@@ -36,6 +36,9 @@ knitr::opts_chunk$set(echo = TRUE, fig.width=15, fig.height=10)
 |      **[B.2]** 228/229 predictors = All remaining variables (208/228 factor + 20/228 numeric)
 |     
 | 
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.1, warning=FALSE, message=FALSE}
 ##################################
 # Loading R libraries
@@ -132,6 +135,9 @@ PDA <- Solubility_Train
   row.names=NULL)
 )
 ```
+
+</details>
+
 ##  1.2 Data Quality Assessment
 |
 | Data quality assessment:
@@ -161,6 +167,10 @@ PDA <- Solubility_Train
 |      **[D.2]** <span style="color: #FF0000">NumChlorine</span> variable (numeric)
 |      **[D.3]** <span style="color: #FF0000">HydrophilicFactor</span> variable (numeric)
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.2, warning=FALSE, message=FALSE}
 ##################################
 # Loading dataset
@@ -377,6 +387,9 @@ if (length(names(DQA.Predictors.Numeric))==0) {
 }
 
 ```
+
+</details>
+
 ##  1.3 Data Preprocessing
 
 ###  1.3.1 Outlier
@@ -405,6 +418,10 @@ if (length(names(DQA.Predictors.Numeric))==0) {
 |      **[A.19]** <span style="color: #FF0000">SurfaceArea1</span> variable (19 outliers detected)
 |      **[A.20]** <span style="color: #FF0000">SurfaceArea2</span> variable (12 outliers detected)
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.3.1, warning=FALSE, message=FALSE, fig.width=15, fig.height=3}
 ##################################
 # Loading dataset
@@ -455,6 +472,9 @@ print(paste0(NumericPredictorWithOutlierCount, " numeric variable(s) were noted 
 dim(DPA.Predictors.Numeric)
 
 ```
+
+</details>
+
 ###  1.3.2 Zero and Near-Zero Variance
 |
 | Zero and near-zero variance data assessment:
@@ -466,6 +486,10 @@ dim(DPA.Predictors.Numeric)
 |      **[B.2]** <span style="color: #FF0000">FP199</span> variable (factor)
 |      **[B.3]** <span style="color: #FF0000">FP200</span> variable (factor)
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.3.2, warning=FALSE, message=FALSE}
 ##################################
 # Loading dataset
@@ -531,6 +555,9 @@ if ((nrow(DPA_LowVariance[DPA_LowVariance$nzv,]))==0){
 dim(DPA_ExcludedLowVariance)
 
 ```
+
+</details>
+
 ###  1.3.3 Collinearity
 |
 | High collinearity data assessment:
@@ -540,6 +567,10 @@ dim(DPA_ExcludedLowVariance)
 |      **[A.2]** <span style="color: #FF0000">NumMultBonds</span> and <span style="color: #FF0000">NumAromaticBonds</span> variables (numeric)
 |      **[A.3]** <span style="color: #FF0000">NumAtoms</span> and <span style="color: #FF0000">NumBonds</span> variables (numeric)
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.3.3, warning=FALSE, message=FALSE}
 ##################################
 # Loading dataset
@@ -638,6 +669,9 @@ if (DPA_HighlyCorrelatedCount > 0) {
 dim(DPA_ExcludedHighCorrelation)
 
 ```
+
+</details>
+
 ###  1.3.4 Linear Dependencies
 |
 | Linear dependency data assessment:
@@ -655,6 +689,10 @@ dim(DPA_ExcludedHighCorrelation)
 |      **[C.2]** <span style="color: #FF0000">NumAtoms</span> variable (numeric)
 |      **[C.3]** <span style="color: #FF0000">NumNonHAtoms</span> variable (numeric)
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.3.4, warning=FALSE, message=FALSE}
 ##################################
 # Loading dataset
@@ -735,12 +773,18 @@ dim(DPA_ExcludedLinearlyDependent)
 
 ```
 
+</details>
+
 ###  1.3.5 Shape Transformation
 |
 | Data transformation assessment:
 |
 | **[A]** A number of numeric variables in the dataset were observed to be right-skewed which required shape transformation for data distribution stability. Considering that all numeric variables were strictly positive values, the <span style="color: #0000FF">BoxCox</span> method from the <mark style="background-color: #CCECFF">**caret**</mark> package was used to transform their distributional shapes.
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.3.5, warning=FALSE, message=FALSE}
 ##################################
 # Loading dataset
@@ -775,12 +819,18 @@ dim(DPA_BoxCoxTransformed)
 
 ```
 
+</details>
+
 ###  1.3.6 Centering and Scaling
 |
 | Centering and scaling data assessment:
 |
 | **[A]** To maintain numerical stability during modelling, centering and scaling transformations were applied on the transformed numeric variables. The <span style="color: #0000FF">center</span> method from the <mark style="background-color: #CCECFF">**caret**</mark> package was implemented which subtracts the average value of a numeric variable to all the values. As a result of centering, the variables had zero mean values. In addition, the <span style="color: #0000FF">scale</span> method, also from the <mark style="background-color: #CCECFF">**caret**</mark> package, was applied which performs a center transformation with each value of the variable divided by its standard deviation. Scaling the data coerced the values to have a common standard deviation of one.
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.3.6, warning=FALSE, message=FALSE}
 ##################################
 # Loading dataset
@@ -821,6 +871,8 @@ dim(DPA.Predictors.Numeric_BoxCoxTransformed_CenteredScaledTransformed)
 
 ```
 
+</details>
+
 ###  1.3.7 Pre-Processed Dataset
 |
 | Preliminary dataset assessment:
@@ -841,6 +893,10 @@ dim(DPA.Predictors.Numeric_BoxCoxTransformed_CenteredScaledTransformed)
 |      **[C.4]** 3 predictors removed due to high correlation
 |      **[C.5]** 2 predictors removed due to linear dependencies
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.3.7, warning=FALSE, message=FALSE}
 ##################################
 # Creating the pre-modelling
@@ -909,6 +965,9 @@ PMA_PreModelling_Test <- PMA_Test_BoxCoxTransformed_CenteredScaledTransformed_Ex
 dim(PMA_PreModelling_Test)
 
 ```
+
+</details>
+
 ## 1.4 Data Exploration
 |
 | Exploratory data analysis:
@@ -949,6 +1008,10 @@ dim(PMA_PreModelling_Test)
 |      **[B.26]** <span style="color: #FF0000">FP014</span> variable (factor)
 |      **[B.27]** <span style="color: #FF0000">FP013</span> variable (factor)
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.4, warning=FALSE, message=FALSE}
 ##################################
 # Loading dataset
@@ -1277,6 +1340,8 @@ EDA.Bar.Source.FactorVar.Prop.Group1 <- rbind(EDA.PropTable.Function(names(EDA.B
 
 ```
 
+</details>
+
 ## 1.5 Predictive Model Development
 
 ###  1.5.1 Penalized Multinomial Regression (PMR)
@@ -1302,6 +1367,10 @@ EDA.Bar.Source.FactorVar.Prop.Group1 <- rbind(EDA.PropTable.Function(names(EDA.B
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.76582
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.1, warning=FALSE, message=FALSE}
 ##################################
 # Creating a local object
@@ -1399,6 +1468,8 @@ PMR_Test
 
 ```
 
+</details>
+
 ###  1.5.2 Linear Discriminant Analysis (LDA)
 |
 | [Linear Discriminant Analysis](https://www.semanticscholar.org/paper/THE-USE-OF-MULTIPLE-MEASUREMENTS-IN-TAXONOMIC-Fisher/ab21376e43ac90a4eafd14f0f02a0c87502b6bbf) finds a linear combination of features that best separates the classes in a data set by projecting the data onto a lower-dimensional space that maximizes the separation between the classes. The algorithm searches for a set of linear discriminants that maximize the ratio of between-class variance to within-class variance by evaluating directions in the feature space that best separate the different classes of data. LDA assumes that the data has a Gaussian distribution and that the covariance matrices of the different classes are equal, in addition to the data being linearly separable by the presence of a linear decision boundary can accurately classify the different classes.
@@ -1416,6 +1487,10 @@ PMR_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.76899
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.2, warning=FALSE, message=FALSE}
 ##################################
 # Transforming factor predictors
@@ -1505,6 +1580,8 @@ LDA_Test
 
 ```
 
+</details>
+
 ###  1.5.3 Flexible Discriminant Analysis (FDA)
 |
 | [Flexible Discriminant Analysis](https://www.tandfonline.com/doi/abs/10.1080/01621459.1994.10476866), as a flexible extension of the linear discriminant analysis, uses optimal scoring to transform the response variable so that the data are in a better form for linear separation, and multiple adaptive regression splines to generate the discriminant surface. The algorithm is useful to model multivariate non-normality or non-linear relationships among variables within each group, allowing for a more accurate classification.
@@ -1529,6 +1606,10 @@ LDA_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.81962
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.3, warning=FALSE, message=FALSE}
 ##################################
 # Creating a local object
@@ -1617,6 +1698,8 @@ FDA_Test
 
 ```
 
+</details>
+
 ###  1.5.4 Mixture Discriminant Analysis (MDA)
 |
 | [Mixture Discriminant Analysis](https://rss.onlinelibrary.wiley.com/doi/10.1111/j.2517-6161.1996.tb02073.x), as an improvement to the restrictions of the linear discriminant analysis towards having all classes coming from a single normal (or Gaussian) distribution, applies the assumption that each class is a Gaussian mixture of sub-classes. The algorithm treats each data point as having the probability of belonging to each class. Equality of covariance matrix among classes, is still assumed.
@@ -1635,6 +1718,10 @@ FDA_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.71519
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.4, warning=FALSE, message=FALSE}
 ##################################
 # Creating a local object
@@ -1714,6 +1801,8 @@ MDA_Test
 
 ```
 
+</details>
+
 ###  1.5.5 Naive Bayes (NB)
 |
 | [Naive Bayes Classifier](https://www.jstor.org/stable/2682766) categorizes instances by applying Bayes Theorem in determining posterior probabilities as conditioned by the likelihood of features, and prior probabilities pertaining to both events and features. The algorithm naively assumes independence between features and assigns the same weight (degree of significance) to all given features. The class conditional probabilities and the prior probabilities are calculated to yield the posterior probability, and operates by returning the class, which has the maximum posterior probability out of a group of classes.
@@ -1734,6 +1823,10 @@ MDA_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.65506
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.5, warning=FALSE, message=FALSE}
 ##################################
 # Creating a local object
@@ -1813,6 +1906,8 @@ NB_Test
 
 ```
 
+</details>
+
 ###  1.5.6 Nearest Shrunken Centroids (NSC)
 |
 | [Nearest Shrunken Centroids](https://pubmed.ncbi.nlm.nih.gov/12011421/) involve first summarizing the training dataset into a set of centroids, then using the centroids to make predictions for new instances. The algorithm shrinks the centroids of each input variable towards the centroid of the entire training data set. Those variables that are shrunk down to the value of the data centroid can then be removed as they do not help to discriminate between the class labels. The centroids in the input feature space are different for each target label which then represents the model. Given new instances, the distance between a given row of data and each centroid is calculated and the closest centroid is used to assign a class label to the example.
@@ -1836,6 +1931,10 @@ NB_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.63607
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.6, warning=FALSE, message=FALSE}
 ##################################
 # Transforming factor predictors
@@ -1936,6 +2035,8 @@ NSC_Test
 
 ```
 
+</details>
+
 ###  1.5.7 Averaged Neural Network (AVNN)
 |
 | [Averaged Neural Networks](https://www.cambridge.org/core/books/pattern-recognition-and-neural-networks/4E038249C9BAA06C8F4EE6F044D09C5C) implement fitting of the same neural network model using different random number seeds. All the resulting models are used for prediction by averaging the model scores and translating to predicted classes. Neural networks are comprised of node layers, containing an input layer, one or more hidden layers, and an output layer. Each node, or artificial neuron, connects to another and has an associated weight and threshold. If the output of any individual node is above the specified threshold value, that node is activated, sending data to the next layer of the network. Otherwise, no data is passed along to the next layer of the network.
@@ -1956,6 +2057,10 @@ NSC_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.65822
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.7, warning=FALSE, message=FALSE}
 ##################################
 # Transforming factor predictors
@@ -2056,6 +2161,8 @@ AVNN_Test
 
 ```
 
+</details>
+
 ###  1.5.8 Support Vector Machine - Radial Basis Function Kernel (SVM_R)
 |
 | [Support Vector Machine](https://dl.acm.org/doi/10.1145/130385.130401) plots each observation in an N-dimensional space corresponding to the number of features in the data set and finds a hyperplane that maximally separates the different classes by a maximally large margin (which is defined as the distance between the hyperplane and the closest data points from each class). The algorithm applies kernel transformation by mapping non-linearly separable data using the similarities between the points in a high-dimensional feature space for improved discrimination.
@@ -2075,6 +2182,10 @@ AVNN_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.79114
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.8, warning=FALSE, message=FALSE}
 ##################################
 # Transforming factor predictors
@@ -2166,6 +2277,8 @@ SVM_R_Test
 
 ```
 
+</details>
+
 ###  1.5.9 Support Vector Machine - Polynomial Kernel (SVM_P)
 |
 | [Support Vector Machine](https://dl.acm.org/doi/10.1145/130385.130401) plots each observation in an N-dimensional space corresponding to the number of features in the data set and finds a hyperplane that maximally separates the different classes by a maximally large margin (which is defined as the distance between the hyperplane and the closest data points from each class). The algorithm applies kernel transformation by mapping non-linearly separable data using the similarities between the points in a high-dimensional feature space for improved discrimination.
@@ -2186,6 +2299,10 @@ SVM_R_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.78797
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.9, warning=FALSE, message=FALSE}
 ##################################
 # Transforming factor predictors
@@ -2281,6 +2398,8 @@ SVM_P_Test
 
 ```
 
+</details>
+
 ###  1.5.10 K-Nearest Neighbors (KNN)
 |
 | [K-Nearest Neighbors](https://ieeexplore.ieee.org/document/1053964) use proximity to make predictions about the class grouping of an individual data point. The algorithm examines the labels of a chosen number of data points surrounding a target data point given a distance-based similarity metric, in order to make a prediction about the class that the data point falls into. The process involves setting a value for the chosen number of neighbors, calculating the distance between the target point across all instances, sorting the calculated distances, obtaining the labels of the top entries and returning the prediction for the target point.
@@ -2299,6 +2418,10 @@ SVM_P_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.66772
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.10, warning=FALSE, message=FALSE}
 ##################################
 # Transforming factor predictors
@@ -2390,6 +2513,8 @@ KNN_Test
 
 ```
 
+</details>
+
 ###  1.5.11 Classification and Regression Trees (CART)
 |
 | [Classification and Regression Trees](https://www.semanticscholar.org/paper/Classification-and-Regression-Trees-Breiman-Friedman/8017699564136f93af21575810d557dba1ee6fc6) construct binary trees for both both nominal and continuous input attributes using Gini Index as its splitting criteria. The algorithm handles missing values by surrogating tests to approximate outcomes. In the pruning phase, CART uses pre-pruning technique called Cost-Complexity pruning to remove redundant branches from the decision tree to improve the accuracy. In the first stage, a sequence of increasingly smaller trees are built on the training data. In the second stage, one of these tree is chosen as the pruned tree, based on its classification accuracy on a pruning set, adopting a cross-validated method in its pruning technique.
@@ -2413,6 +2538,10 @@ KNN_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.79746
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.11, warning=FALSE, message=FALSE}
 ##################################
 # Creating a local object
@@ -2499,6 +2628,9 @@ CART_Test
                                y_true = CART_Test$CART_Observed))
 
 ```
+
+</details>
+
 ###  1.5.12 Conditional Inference Trees (CTREE)
 |
 | [Conditional Inference Trees](https://www.tandfonline.com/doi/abs/10.1198/106186006X133933) use recursive partitioning of features based on the value of correlations in  conditional inference framework - compensating against overfitting and a selection bias towards features with many possible splits or missing values thus avoiding biasing and vulnerability to the errors making the method more flexible for the problems in the data. The algorithm applies a significance test which is a permutation test that selects input features to split and recurse, calculating the p-value in the process. The distribution of the test statistic under the null hypothesis is obtained by calculating all possible values of the test statistic under rearrangements of the classes on the observed data points.
@@ -2522,6 +2654,10 @@ CART_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.79430
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.12, warning=FALSE, message=FALSE}
 ##################################
 # Creating a local object
@@ -2608,6 +2744,9 @@ CTREE_Test
                                y_true = CTREE_Test$CTREE_Observed))
 
 ```
+
+</details>
+
 ###  1.5.13 C5.0 Decision Trees (C50)
 |
 | [C5.0 Decision Trees](https://link.springer.com/article/10.1007/BF00993309) generate multi-branch trees in a situation where one or more nominal inputs are given, using an information-based criterion (Entropy and Information Gain) as an attribute selection measure to build decision trees. For overfitting avoidance, the algorithm applies a pessimistic pruning approach called Rule-post pruning, to remove unreliable branches from the decision tree to reduce the size of the tree without any loss of its predictive accuracy. The Rule-post pruning starts off by converting a decision tree to an equivalent set of rules, then based on statistical confidence estimations for error rate it evaluates the rules with the aim of simplifying them without affecting the accuracy, adopting the Binomial Confidence Limit method. In a case of handling missing values, the algorithm allows to whether estimate missing values as a function of other attributes or apportions the case probabilistically among the results.
@@ -2633,6 +2772,10 @@ CTREE_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.79746
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.13, warning=FALSE, message=FALSE}
 ##################################
 # Creating a local object
@@ -2724,6 +2867,8 @@ C50_Test
 
 ```
 
+</details>
+
 ###  1.5.14 Random Forest (RF)
 |
 | [Random Forest](https://link.springer.com/article/10.1023/A:1010933404324) is an ensemble learning method made up of a large set of small decision trees called estimators, with each producing its own prediction. The random forest model aggregates the predictions of the estimators to produce a more accurate prediction. The algorithm involves bootstrap aggregating (where smaller subsets of the training data are repeatedly subsampled with replacement), random subspacing (where a subset of features are sampled and used to train each individual estimator), estimator training (where unpruned decision trees are formulated for each estimator) and inference by aggregating the predictions of all estimators.
@@ -2747,6 +2892,10 @@ C50_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.83861
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.14, warning=FALSE, message=FALSE}
 ##################################
 # Creating a local object
@@ -2834,6 +2983,7 @@ RF_Test
 
 ```
 
+</details>
 
 ###  1.5.15 Bagged Trees (BTREE)
 |
@@ -2857,6 +3007,10 @@ RF_Test
 | **[E]** The independent test model performance of the final model is summarized as follows:
 |      **[E.1]** Accuracy = 0.81329
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.5.15, warning=FALSE, message=FALSE}
 ##################################
 # Creating a local object
@@ -2943,6 +3097,8 @@ BTREE_Test
 
 ```
 
+</details>
+
 ##  1.6 Model Evaluation Summary
 |
 | Model performance comparison:
@@ -2958,6 +3114,10 @@ BTREE_Test
 |             **[A.3.1]** Cross-Validation Accuracy = 0.80650
 |             **[A.3.2]** Test Accuracy = 0.79746 
 |
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
 ```{r section_1.6, warning=FALSE, message=FALSE}
 ##################################
 # Consolidating all evaluation results
@@ -3015,6 +3175,8 @@ print(Accuracy_Summary, row.names=FALSE)
                            cex = 2))
 
 ```
+
+</details>
 
 # **2. References**
 |
