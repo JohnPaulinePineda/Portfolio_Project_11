@@ -1,5 +1,5 @@
 ---
-title: 'R : Modelling Multiclass Categorical Responses for Prediction'
+title: 'Supervised Learning : Modelling Multiclass Categorical Responses for Prediction'
 author: "John Pauline Pineda"
 date: "December 5, 2022"
 output: 
