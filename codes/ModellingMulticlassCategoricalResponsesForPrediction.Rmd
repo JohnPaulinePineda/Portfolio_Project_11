@@ -1,0 +1,3250 @@
+---
+title: 'Supervised Learning : Modelling Multiclass Categorical Responses for Prediction'
+author: "John Pauline Pineda"
+date: "December 5, 2022"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    theme: readable
+    highlight: tango
+    css: doc.css
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=15, fig.height=10)
+```
+# **1. Table of Contents**
+|
+| This project implements different predictive modelling procedures for multiclass categorical responses using various helpful packages in <mark style="background-color: #CCECFF">**R**</mark>. Models applied in the analysis to predict multiclass categorical responses included the **Penalized Multinomial Regression**, **Linear Discriminant Analysis**, **Flexible Discriminant Analysis**, **Mixture Discriminant Analysis**, **Naive Bayes**, **Nearest Shrunken Centroids**, **Averaged Neural Network**, **Support Vector Machine (Radial Basis Function Kernel, Polynomial Kernel)**, **K-Nearest Neighbors**, **Classification and Regression Trees**, **Conditional Inference Trees**, **C5.0 Decision Trees**, **Random Forest** and **Bagged Trees** algorithms. The resulting predictions derived from the candidate models were evaluated in terms of their classification performance using the accuracy metric. All results were consolidated in a [<span style="color: #FF0000">**Summary**</span>](#summary) presented at the end of the document.
+|
+| Multiclass classification learning refers to a predictive modelling problem where more than two class labels are predicted for a given sample of input data. These models use the training data set and calculate how to best map instances of input data to the specific class labels. Multiclass classification does not have the notion of normal and abnormal outcomes. Instead, instances are classified as belonging to one among a range of known classes. It is common to model a multiclass classification task with a model that predicts a Multinoulli probability distribution for each instance. The Multinoulli distribution is a discrete probability distribution that covers a case where an event will have a categorical outcome. For classification, this means that the model predicts the probability of an instance belonging to each class label. The algorithms applied in this study (mostly contained in the <mark style="background-color: #CCECFF">**caret**</mark> package) attempt to categorize the input data and form polytomous groups based on their similarities. 
+|
+##  1.1 Sample Data
+|
+| The <mark style="background-color: #EEEEEE;color: #FF0000">**Solubility**</mark>  dataset from the  <mark style="background-color: #CCECFF">**AppliedPredictiveModeling**</mark> package was used for this illustrated example. The original numeric response was transformed to simulate a multiclass variable.
+|
+| Preliminary dataset assessment:
+|
+| **[A]** 1267 rows (observations)
+|      **[A.1]** Train Set = 951 observations
+|      **[A.2]** Test Set = 316 observations
+| 
+| **[B]** 229 columns (variables)
+|      **[B.1]** 1/229 response = <span style="color: #FF0000">Log_Solubility_Class</span> variable (factor)
+|             **[B.1.1]** Levels = <span style="color: #FF0000">Log_Solubility_Class=Low</span> < <span style="color: #FF0000">Log_Solubility_Class=Mid</span> < <span style="color: #FF0000">Log_Solubility_Class=High</span>
+|      **[B.2]** 228/229 predictors = All remaining variables (208/228 factor + 20/228 numeric)
+|     
+| 
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.1, warning=FALSE, message=FALSE}
+##################################
+# Loading R libraries
+##################################
+library(AppliedPredictiveModeling)
+library(caret)
+library(rpart)
+library(lattice)
+library(dplyr)
+library(tidyr)
+library(moments)
+library(skimr)
+library(RANN)
+library(pls)
+library(corrplot)
+library(tidyverse)
+library(lares)
+library(DMwR)
+library(gridExtra)
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+library(stats)
+library(nnet)
+library(elasticnet)
+library(earth)
+library(party)
+library(kernlab)
+library(randomForest)
+library(Cubist)
+library(pROC)
+library(mda)
+library(klaR)
+library(pamr)
+library(MLmetrics)
+library(ordinalNet)
+
+##################################
+# Loading source and
+# formulating the train set
+##################################
+data(solubility)
+Solubility_Train <- as.data.frame(cbind(solTrainY,solTrainX))
+Solubility_Test  <- as.data.frame(cbind(solTestY,solTestX))
+
+##################################
+# Computing the thresholds
+# for converting the numeric response
+# to a multiclass response
+##################################
+Log_Solubility_Mean <- mean(Solubility_Train$solTrainY)
+Log_Solubility_75Percentile <- quantile(Solubility_Train$solTrainY, probs = 0.75)[1]
+
+##################################
+# Applying dichotomization and
+# defining the response variable
+##################################
+Solubility_Train$Log_Solubility_Class <- ifelse(Solubility_Train$solTrainY<Log_Solubility_Mean,
+                                                "Low",ifelse(Solubility_Train$solTrainY<Log_Solubility_75Percentile,
+                                                             "Mid","High"))
+Solubility_Train$Log_Solubility_Class <- factor(Solubility_Train$Log_Solubility_Class,
+                                                levels = c("Low","Mid","High"))
+Solubility_Test$Log_Solubility_Class <- ifelse(Solubility_Test$solTestY<Log_Solubility_Mean,
+                                                "Low",ifelse(Solubility_Test$solTestY<Log_Solubility_75Percentile,
+                                                             "Mid","High"))
+Solubility_Test$Log_Solubility_Class <- factor(Solubility_Test$Log_Solubility_Class,
+                                                levels = c("Low","Mid","High"))
+
+Solubility_Train$solTrainY <- NULL
+Solubility_Test$solTestY <- NULL
+
+##################################
+# Performing a general exploration of the train set
+##################################
+dim(Solubility_Train)
+str(Solubility_Train)
+summary(Solubility_Train)
+
+##################################
+# Performing a general exploration of the test set
+##################################
+dim(Solubility_Test)
+str(Solubility_Test)
+summary(Solubility_Test)
+
+##################################
+# Formulating a data type assessment summary
+##################################
+PDA <- Solubility_Train
+(PDA.Summary <- data.frame(
+  Column.Index=c(1:length(names(PDA))),
+  Column.Name= names(PDA),
+  Column.Type=sapply(PDA, function(x) class(x)),
+  row.names=NULL)
+)
+```
+
+</details>
+
+##  1.2 Data Quality Assessment
+|
+| **[A]** No missing observations noted for any variable.
+|
+| **[B]** Low variance observed for 127 variables with First.Second.Mode.Ratio>5.
+|      **[B.1]-[B.33]** <span style="color: #FF0000">FP013</span> to <span style="color: #FF0000">FP045</span> variables (factor)
+|      **[B.34]-[B.45]** <span style="color: #FF0000">FP048</span> to <span style="color: #FF0000">FP059</span> variables (factor)
+|      **[B.46]** <span style="color: #FF0000">FP114</span> variable (factor)
+|      **[B.47]-[B.50]** <span style="color: #FF0000">FP119</span> to <span style="color: #FF0000">FP122</span> variable (factor)
+|      **[B.51]-[B.88]** <span style="color: #FF0000">FP124</span> to <span style="color: #FF0000">FP161</span> variables (factor)
+|      **[B.89]-[B.118]** <span style="color: #FF0000">FP172</span> to <span style="color: #FF0000">FP201</span> variables (factor)
+|      **[B.119]-[B.124]** <span style="color: #FF0000">FP203</span> to <span style="color: #FF0000">FP208</span> variables (factor)
+|      **[B.125]** <span style="color: #FF0000">NumSulfer</span> variable (numeric)
+|      **[B.126]** <span style="color: #FF0000">NumChlorine</span> variable (numeric)
+|      **[B.127]** <span style="color: #FF0000">NumHalogen</span> variable (numeric)
+|
+| **[C]** Low variance observed for 4 variables with Unique.Count.Ratio<0.01.
+|      **[C.1]** <span style="color: #FF0000">NumDblBonds</span> variable (numeric)
+|      **[C.2]** <span style="color: #FF0000">NumNitrogen</span> variable (numeric)
+|      **[C.3]** <span style="color: #FF0000">NumSulfer</span> variable (numeric)
+|      **[C.4]** <span style="color: #FF0000">NumRings</span> variable (numeric)
+|
+| **[D]** High skewness observed for 3 variables with Skewness>3 or Skewness<(-3).
+|      **[D.1]** <span style="color: #FF0000">NumSulfer</span> variable (numeric)
+|      **[D.2]** <span style="color: #FF0000">NumChlorine</span> variable (numeric)
+|      **[D.3]** <span style="color: #FF0000">HydrophilicFactor</span> variable (numeric)
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.2, warning=FALSE, message=FALSE}
+##################################
+# Loading dataset
+##################################
+DQA <- Solubility_Train
+
+##################################
+# Formulating an overall data quality assessment summary
+##################################
+(DQA.Summary <- data.frame(
+  Column.Index=c(1:length(names(DQA))),
+  Column.Name= names(DQA), 
+  Column.Type=sapply(DQA, function(x) class(x)), 
+  Row.Count=sapply(DQA, function(x) nrow(DQA)),
+  NA.Count=sapply(DQA,function(x)sum(is.na(x))),
+  Fill.Rate=sapply(DQA,function(x)format(round((sum(!is.na(x))/nrow(DQA)),3),nsmall=3)),
+  row.names=NULL)
+)
+
+##################################
+# Listing all predictors
+##################################
+DQA.Predictors <- DQA[,!names(DQA) %in% c("Log_Solubility_Class")]
+
+##################################
+# Listing all numeric predictors
+##################################
+DQA.Predictors.Numeric <- DQA.Predictors[,-(grep("FP", names(DQA.Predictors)))]
+
+if (length(names(DQA.Predictors.Numeric))>0) {
+    print(paste0("There are ",
+               (length(names(DQA.Predictors.Numeric))),
+               " numeric predictor variable(s)."))
+} else {
+  print("There are no numeric predictor variables.")
+}
+
+##################################
+# Listing all factor predictors
+##################################
+DQA.Predictors.Factor <-as.data.frame(lapply(DQA.Predictors[(grep("FP", names(DQA.Predictors)))],factor))
+
+if (length(names(DQA.Predictors.Factor))>0) {
+    print(paste0("There are ",
+               (length(names(DQA.Predictors.Factor))),
+               " factor predictor variable(s)."))
+} else {
+  print("There are no factor predictor variables.")
+}
+
+##################################
+# Formulating a data quality assessment summary for factor predictors
+##################################
+if (length(names(DQA.Predictors.Factor))>0) {
+  
+  ##################################
+  # Formulating a function to determine the first mode
+  ##################################
+  FirstModes <- function(x) {
+    ux <- unique(na.omit(x))
+    tab <- tabulate(match(x, ux))
+    ux[tab == max(tab)]
+  }
+
+  ##################################
+  # Formulating a function to determine the second mode
+  ##################################
+  SecondModes <- function(x) {
+    ux <- unique(na.omit(x))
+    tab <- tabulate(match(x, ux))
+    fm = ux[tab == max(tab)]
+    sm = x[!(x %in% fm)]
+    usm <- unique(sm)
+    tabsm <- tabulate(match(sm, usm))
+    ifelse(is.na(usm[tabsm == max(tabsm)])==TRUE,
+           return("x"),
+           return(usm[tabsm == max(tabsm)]))
+  }
+  
+  (DQA.Predictors.Factor.Summary <- data.frame(
+  Column.Name= names(DQA.Predictors.Factor), 
+  Column.Type=sapply(DQA.Predictors.Factor, function(x) class(x)), 
+  Unique.Count=sapply(DQA.Predictors.Factor, function(x) length(unique(x))),
+  First.Mode.Value=sapply(DQA.Predictors.Factor, function(x) as.character(FirstModes(x)[1])),
+  Second.Mode.Value=sapply(DQA.Predictors.Factor, function(x) as.character(SecondModes(x)[1])),
+  First.Mode.Count=sapply(DQA.Predictors.Factor, function(x) sum(na.omit(x) == FirstModes(x)[1])),
+  Second.Mode.Count=sapply(DQA.Predictors.Factor, function(x) sum(na.omit(x) == SecondModes(x)[1])),
+  Unique.Count.Ratio=sapply(DQA.Predictors.Factor, function(x) format(round((length(unique(x))/nrow(DQA.Predictors.Factor)),3), nsmall=3)),
+  First.Second.Mode.Ratio=sapply(DQA.Predictors.Factor, function(x) format(round((sum(na.omit(x) == FirstModes(x)[1])/sum(na.omit(x) == SecondModes(x)[1])),3), nsmall=3)),
+  row.names=NULL)
+  )
+  
+} 
+
+##################################
+# Formulating a data quality assessment summary for numeric predictors
+##################################
+if (length(names(DQA.Predictors.Numeric))>0) {
+  
+  ##################################
+  # Formulating a function to determine the first mode
+  ##################################
+  FirstModes <- function(x) {
+    ux <- unique(na.omit(x))
+    tab <- tabulate(match(x, ux))
+    ux[tab == max(tab)]
+  }
+
+  ##################################
+  # Formulating a function to determine the second mode
+  ##################################
+  SecondModes <- function(x) {
+    ux <- unique(na.omit(x))
+    tab <- tabulate(match(x, ux))
+    fm = ux[tab == max(tab)]
+    sm = na.omit(x)[!(na.omit(x) %in% fm)]
+    usm <- unique(sm)
+    tabsm <- tabulate(match(sm, usm))
+    ifelse(is.na(usm[tabsm == max(tabsm)])==TRUE,
+           return(0.00001),
+           return(usm[tabsm == max(tabsm)]))
+  }
+  
+  (DQA.Predictors.Numeric.Summary <- data.frame(
+  Column.Name= names(DQA.Predictors.Numeric), 
+  Column.Type=sapply(DQA.Predictors.Numeric, function(x) class(x)), 
+  Unique.Count=sapply(DQA.Predictors.Numeric, function(x) length(unique(x))),
+  Unique.Count.Ratio=sapply(DQA.Predictors.Numeric, function(x) format(round((length(unique(x))/nrow(DQA.Predictors.Numeric)),3), nsmall=3)),
+  First.Mode.Value=sapply(DQA.Predictors.Numeric, function(x) format(round((FirstModes(x)[1]),3),nsmall=3)),
+  Second.Mode.Value=sapply(DQA.Predictors.Numeric, function(x) format(round((SecondModes(x)[1]),3),nsmall=3)),
+  First.Mode.Count=sapply(DQA.Predictors.Numeric, function(x) sum(na.omit(x) == FirstModes(x)[1])),
+  Second.Mode.Count=sapply(DQA.Predictors.Numeric, function(x) sum(na.omit(x) == SecondModes(x)[1])),
+  First.Second.Mode.Ratio=sapply(DQA.Predictors.Numeric, function(x) format(round((sum(na.omit(x) == FirstModes(x)[1])/sum(na.omit(x) == SecondModes(x)[1])),3), nsmall=3)),
+  Minimum=sapply(DQA.Predictors.Numeric, function(x) format(round(min(x,na.rm = TRUE),3), nsmall=3)),
+  Mean=sapply(DQA.Predictors.Numeric, function(x) format(round(mean(x,na.rm = TRUE),3), nsmall=3)),
+  Median=sapply(DQA.Predictors.Numeric, function(x) format(round(median(x,na.rm = TRUE),3), nsmall=3)),
+  Maximum=sapply(DQA.Predictors.Numeric, function(x) format(round(max(x,na.rm = TRUE),3), nsmall=3)),
+  Skewness=sapply(DQA.Predictors.Numeric, function(x) format(round(skewness(x,na.rm = TRUE),3), nsmall=3)),
+  Kurtosis=sapply(DQA.Predictors.Numeric, function(x) format(round(kurtosis(x,na.rm = TRUE),3), nsmall=3)),
+  Percentile25th=sapply(DQA.Predictors.Numeric, function(x) format(round(quantile(x,probs=0.25,na.rm = TRUE),3), nsmall=3)),
+  Percentile75th=sapply(DQA.Predictors.Numeric, function(x) format(round(quantile(x,probs=0.75,na.rm = TRUE),3), nsmall=3)),
+  row.names=NULL)
+  )  
+  
+}
+
+##################################
+# Identifying potential data quality issues
+##################################
+
+##################################
+# Checking for missing observations
+##################################
+if ((nrow(DQA.Summary[DQA.Summary$NA.Count>0,]))>0){
+  print(paste0("Missing observations noted for ",
+               (nrow(DQA.Summary[DQA.Summary$NA.Count>0,])),
+               " variable(s) with NA.Count>0 and Fill.Rate<1.0."))
+  DQA.Summary[DQA.Summary$NA.Count>0,]
+} else {
+  print("No missing observations noted.")
+}
+
+##################################
+# Checking for zero or near-zero variance predictors
+##################################
+if (length(names(DQA.Predictors.Factor))==0) {
+  print("No factor predictors noted.")
+} else if (nrow(DQA.Predictors.Factor.Summary[as.numeric(as.character(DQA.Predictors.Factor.Summary$First.Second.Mode.Ratio))>5,])>0){
+  print(paste0("Low variance observed for ",
+               (nrow(DQA.Predictors.Factor.Summary[as.numeric(as.character(DQA.Predictors.Factor.Summary$First.Second.Mode.Ratio))>5,])),
+               " factor variable(s) with First.Second.Mode.Ratio>5."))
+  DQA.Predictors.Factor.Summary[as.numeric(as.character(DQA.Predictors.Factor.Summary$First.Second.Mode.Ratio))>5,]
+} else {
+  print("No low variance factor predictors due to high first-second mode ratio noted.")
+}
+
+if (length(names(DQA.Predictors.Numeric))==0) {
+  print("No numeric predictors noted.")
+} else if (nrow(DQA.Predictors.Numeric.Summary[as.numeric(as.character(DQA.Predictors.Numeric.Summary$First.Second.Mode.Ratio))>5,])>0){
+  print(paste0("Low variance observed for ",
+               (nrow(DQA.Predictors.Numeric.Summary[as.numeric(as.character(DQA.Predictors.Numeric.Summary$First.Second.Mode.Ratio))>5,])),
+               " numeric variable(s) with First.Second.Mode.Ratio>5."))
+  DQA.Predictors.Numeric.Summary[as.numeric(as.character(DQA.Predictors.Numeric.Summary$First.Second.Mode.Ratio))>5,]
+} else {
+  print("No low variance numeric predictors due to high first-second mode ratio noted.")
+}
+
+if (length(names(DQA.Predictors.Numeric))==0) {
+  print("No numeric predictors noted.")
+} else if (nrow(DQA.Predictors.Numeric.Summary[as.numeric(as.character(DQA.Predictors.Numeric.Summary$Unique.Count.Ratio))<0.01,])>0){
+  print(paste0("Low variance observed for ",
+               (nrow(DQA.Predictors.Numeric.Summary[as.numeric(as.character(DQA.Predictors.Numeric.Summary$Unique.Count.Ratio))<0.01,])),
+               " numeric variable(s) with Unique.Count.Ratio<0.01."))
+  DQA.Predictors.Numeric.Summary[as.numeric(as.character(DQA.Predictors.Numeric.Summary$Unique.Count.Ratio))<0.01,]
+} else {
+  print("No low variance numeric predictors due to low unique count ratio noted.")
+}
+
+##################################
+# Checking for skewed predictors
+##################################
+if (length(names(DQA.Predictors.Numeric))==0) {
+  print("No numeric predictors noted.")
+} else if (nrow(DQA.Predictors.Numeric.Summary[as.numeric(as.character(DQA.Predictors.Numeric.Summary$Skewness))>3 |
+                                               as.numeric(as.character(DQA.Predictors.Numeric.Summary$Skewness))<(-3),])>0){
+  print(paste0("High skewness observed for ",
+  (nrow(DQA.Predictors.Numeric.Summary[as.numeric(as.character(DQA.Predictors.Numeric.Summary$Skewness))>3 |
+                                               as.numeric(as.character(DQA.Predictors.Numeric.Summary$Skewness))<(-3),])),
+  " numeric variable(s) with Skewness>3 or Skewness<(-3)."))
+  DQA.Predictors.Numeric.Summary[as.numeric(as.character(DQA.Predictors.Numeric.Summary$Skewness))>3 |
+                                 as.numeric(as.character(DQA.Predictors.Numeric.Summary$Skewness))<(-3),]
+} else {
+  print("No skewed numeric predictors noted.")
+}
+
+```
+
+</details>
+
+##  1.3 Data Preprocessing
+
+###  1.3.1 Outlier
+|
+| **[A]** Outliers noted for 20 variables  with the numeric data visualized through a boxplot including observations classified as suspected outliers using the IQR criterion. The IQR criterion means that all observations above the (75th percentile + 1.5 x IQR) or below the (25th percentile - 1.5 x IQR) are suspected outliers, where IQR is the difference between the third quartile (75th percentile) and first quartile (25th percentile). Outlier treatment for numerical stability remains optional depending on potential model requirements for the subsequent steps.
+|      **[A.1]** <span style="color: #FF0000">MolWeight	</span> variable (8 outliers detected)
+|      **[A.2]** <span style="color: #FF0000">NumAtoms</span> variable (44 outliers detected)
+|      **[A.3]** <span style="color: #FF0000">NumNonHAtoms</span> variable (15 outliers detected)
+|      **[A.4]** <span style="color: #FF0000">NumBonds</span> variable (51 outliers detected)
+|      **[A.5]** <span style="color: #FF0000">NumNonHBonds</span> variable (18 outliers detected)
+|      **[A.6]** <span style="color: #FF0000">NumMultBonds</span> variable (6 outliers detected)
+|      **[A.7]** <span style="color: #FF0000">NumRotBonds</span> variable (23 outliers detected)
+|      **[A.8]** <span style="color: #FF0000">NumDblBonds</span> variable (3 outliers detected)
+|      **[A.9]** <span style="color: #FF0000">NumAromaticBonds</span> variable (35 outliers detected)
+|      **[A.10]** <span style="color: #FF0000">NumHydrogen</span> variable (32 outliers detected)
+|      **[A.11]** <span style="color: #FF0000">NumCarbon</span> variable (35 outliers detected)
+|      **[A.12]** <span style="color: #FF0000">NumNitrogen</span> variable (91 outliers detected)
+|      **[A.13]** <span style="color: #FF0000">NumOxygen</span> variable (36 outliers detected)
+|      **[A.14]** <span style="color: #FF0000">NumSulfer</span> variable (121 outliers detected)
+|      **[A.15]** <span style="color: #FF0000">NumChlorine</span> variable (201 outliers detected)
+|      **[A.16]** <span style="color: #FF0000">NumHalogen</span> variable (99 outliers detected)
+|      **[A.17]** <span style="color: #FF0000">NumRings</span> variable (4 outliers detected)
+|      **[A.18]** <span style="color: #FF0000">HydrophilicFactor</span> variable (53 outliers detected)
+|      **[A.19]** <span style="color: #FF0000">SurfaceArea1</span> variable (19 outliers detected)
+|      **[A.20]** <span style="color: #FF0000">SurfaceArea2</span> variable (12 outliers detected)
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.3.1, warning=FALSE, message=FALSE, fig.width=15, fig.height=3}
+##################################
+# Loading dataset
+##################################
+DPA <- Solubility_Train
+
+##################################
+# Listing all predictors
+##################################
+DPA.Predictors <- DPA[,!names(DPA) %in% c("Log_Solubility_Class")]
+
+##################################
+# Listing all numeric predictors
+##################################
+DPA.Predictors.Numeric <- DPA.Predictors[,-(grep("FP", names(DPA.Predictors)))]
+
+##################################
+# Identifying outliers for the numeric predictors
+##################################
+OutlierCountList <- c()
+
+for (i in 1:ncol(DPA.Predictors.Numeric)) {
+  Outliers <- boxplot.stats(DPA.Predictors.Numeric[,i])$out
+  OutlierCount <- length(Outliers)
+  OutlierCountList <- append(OutlierCountList,OutlierCount)
+  OutlierIndices <- which(DPA.Predictors.Numeric[,i] %in% c(Outliers))
+  boxplot(DPA.Predictors.Numeric[,i], 
+          ylab = names(DPA.Predictors.Numeric)[i], 
+          main = names(DPA.Predictors.Numeric)[i],
+          horizontal=TRUE)
+  mtext(paste0(OutlierCount, " Outlier(s) Detected"))
+}
+
+OutlierCountSummary <- as.data.frame(cbind(names(DPA.Predictors.Numeric),(OutlierCountList)))
+names(OutlierCountSummary) <- c("NumericPredictors","OutlierCount")
+OutlierCountSummary$OutlierCount <- as.numeric(as.character(OutlierCountSummary$OutlierCount))
+NumericPredictorWithOutlierCount <- nrow(OutlierCountSummary[OutlierCountSummary$OutlierCount>0,])
+print(paste0(NumericPredictorWithOutlierCount, " numeric variable(s) were noted with outlier(s)." ))
+
+##################################
+# Gathering descriptive statistics
+##################################
+(DPA_Skimmed <- skim(DPA.Predictors.Numeric))
+
+###################################
+# Verifying the data dimensions
+###################################
+dim(DPA.Predictors.Numeric)
+
+```
+
+</details>
+
+###  1.3.2 Zero and Near-Zero Variance
+|
+| **[A]** Low variance noted for 127 variables from the previous data quality assessment using a lower threshold.
+|
+| **[B]** Low variance noted for 3 variables using a preprocessing summary from the <mark style="background-color: #CCECFF">**caret**</mark> package. The <span style="color: #0000FF">nearZeroVar</span> method using both the <span style="color: #0000FF">freqCut</span> and <span style="color: #0000FF">uniqueCut</span> criteria set at 95/5 and 10, respectively, were applied on the dataset.
+|      **[B.1]** <span style="color: #FF0000">FP154</span> variable (factor)
+|      **[B.2]** <span style="color: #FF0000">FP199</span> variable (factor)
+|      **[B.3]** <span style="color: #FF0000">FP200</span> variable (factor)
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.3.2, warning=FALSE, message=FALSE}
+##################################
+# Loading dataset
+##################################
+DPA <- Solubility_Train
+
+##################################
+# Gathering descriptive statistics
+##################################
+(DPA_Skimmed <- skim(DPA))
+
+##################################
+# Identifying columns with low variance
+###################################
+DPA_LowVariance <- nearZeroVar(DPA,
+                               freqCut = 95/5,
+                               uniqueCut = 10,
+                               saveMetrics= TRUE)
+(DPA_LowVariance[DPA_LowVariance$nzv,])
+
+if ((nrow(DPA_LowVariance[DPA_LowVariance$nzv,]))==0){
+  
+  print("No low variance predictors noted.")
+  
+} else {
+
+  print(paste0("Low variance observed for ",
+               (nrow(DPA_LowVariance[DPA_LowVariance$nzv,])),
+               " numeric variable(s) with First.Second.Mode.Ratio>4 and Unique.Count.Ratio<0.10."))
+  
+  DPA_LowVarianceForRemoval <- (nrow(DPA_LowVariance[DPA_LowVariance$nzv,]))
+  
+  print(paste0("Low variance can be resolved by removing ",
+               (nrow(DPA_LowVariance[DPA_LowVariance$nzv,])),
+               " numeric variable(s)."))
+  
+  for (j in 1:DPA_LowVarianceForRemoval) {
+  DPA_LowVarianceRemovedVariable <- rownames(DPA_LowVariance[DPA_LowVariance$nzv,])[j]
+  print(paste0("Variable ",
+               j,
+               " for removal: ",
+               DPA_LowVarianceRemovedVariable))
+  }
+  
+  DPA %>%
+  skim() %>%
+  dplyr::filter(skim_variable %in% rownames(DPA_LowVariance[DPA_LowVariance$nzv,]))
+
+  ##################################
+  # Filtering out columns with low variance
+  #################################
+  DPA_ExcludedLowVariance <- DPA[,!names(DPA) %in% rownames(DPA_LowVariance[DPA_LowVariance$nzv,])]
+  
+  ##################################
+  # Gathering descriptive statistics
+  ##################################
+  (DPA_ExcludedLowVariance_Skimmed <- skim(DPA_ExcludedLowVariance))
+}
+
+###################################
+# Verifying the data dimensions
+###################################
+dim(DPA_ExcludedLowVariance)
+
+```
+
+</details>
+
+###  1.3.3 Collinearity
+|
+| **[A]** High correlation > 95% were noted for 2 variable pairs as confirmed using the preprocessing summaries from the <mark style="background-color: #CCECFF">**caret**</mark> and <mark style="background-color: #CCECFF">**lares**</mark> packages.
+|      **[A.1]** <span style="color: #FF0000">NumNonHAtoms</span> and <span style="color: #FF0000">NumNonHBonds</span> variables (numeric)
+|      **[A.2]** <span style="color: #FF0000">NumMultBonds</span> and <span style="color: #FF0000">NumAromaticBonds</span> variables (numeric)
+|      **[A.3]** <span style="color: #FF0000">NumAtoms</span> and <span style="color: #FF0000">NumBonds</span> variables (numeric)
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.3.3, warning=FALSE, message=FALSE}
+##################################
+# Loading dataset
+##################################
+DPA <- Solubility_Train
+
+##################################
+# Listing all predictors
+##################################
+DPA.Predictors <- DPA[,!names(DPA) %in% c("Log_Solubility_Class")]
+
+##################################
+# Listing all numeric predictors
+##################################
+DPA.Predictors.Numeric <- DPA.Predictors[,-(grep("FP", names(DPA.Predictors)))]
+
+##################################
+# Visualizing pairwise correlation between predictors
+##################################
+DPA_CorrelationTest <- cor.mtest(DPA.Predictors.Numeric,
+                       method = "pearson",
+                       conf.level = .95)
+
+corrplot(cor(DPA.Predictors.Numeric,
+             method = "pearson",
+             use="pairwise.complete.obs"), 
+         method = "circle",
+         type = "upper", 
+         order = "original", 
+         tl.col = "black", 
+         tl.cex = 0.75,
+         tl.srt = 90, 
+         sig.level = 0.05, 
+         p.mat = DPA_CorrelationTest$p,
+         insig = "blank")
+
+
+
+##################################
+# Identifying the highly correlated variables
+##################################
+DPA_Correlation <-  cor(DPA.Predictors.Numeric, 
+                        method = "pearson",
+                        use="pairwise.complete.obs")
+(DPA_HighlyCorrelatedCount <- sum(abs(DPA_Correlation[upper.tri(DPA_Correlation)]) > 0.95))
+
+if (DPA_HighlyCorrelatedCount == 0) {
+  print("No highly correlated predictors noted.")
+} else {
+  print(paste0("High correlation observed for ",
+               (DPA_HighlyCorrelatedCount),
+               " pairs of numeric variable(s) with Correlation.Coefficient>0.95."))
+  
+  (DPA_HighlyCorrelatedPairs <- corr_cross(DPA.Predictors.Numeric,
+  max_pvalue = 0.05, 
+  top = DPA_HighlyCorrelatedCount,
+  rm.na = TRUE,
+  grid = FALSE
+))
+  
+}
+
+
+if (DPA_HighlyCorrelatedCount > 0) {
+  DPA_HighlyCorrelated <- findCorrelation(DPA_Correlation, cutoff = 0.95)
+  
+  (DPA_HighlyCorrelatedForRemoval <- length(DPA_HighlyCorrelated))
+  
+  print(paste0("High correlation can be resolved by removing ",
+               (DPA_HighlyCorrelatedForRemoval),
+               " numeric variable(s)."))
+  
+  for (j in 1:DPA_HighlyCorrelatedForRemoval) {
+  DPA_HighlyCorrelatedRemovedVariable <- colnames(DPA.Predictors.Numeric)[DPA_HighlyCorrelated[j]]
+  print(paste0("Variable ",
+               j,
+               " for removal: ",
+               DPA_HighlyCorrelatedRemovedVariable))
+  }
+  
+  ##################################
+  # Filtering out columns with high correlation
+  #################################
+  DPA_ExcludedHighCorrelation <- DPA[,-DPA_HighlyCorrelated]
+  
+  ##################################
+  # Gathering descriptive statistics
+  ##################################
+  (DPA_ExcludedHighCorrelation_Skimmed <- skim(DPA_ExcludedHighCorrelation))
+
+}
+
+###################################
+# Verifying the data dimensions
+###################################
+dim(DPA_ExcludedHighCorrelation)
+
+```
+
+</details>
+
+###  1.3.4 Linear Dependencies
+|
+| **[A]** Linear dependencies noted for 2 subsets of variables using the preprocessing summary from the <mark style="background-color: #CCECFF">**caret**</mark> package applying the <span style="color: #0000FF">findLinearCombos</span> method which utilizes the QR decomposition of a matrix to enumerate sets of linear combinations (if they exist). 
+|
+| **[B]** Subset 1
+|      **[B.1]** <span style="color: #FF0000">NumNonHBonds</span> variable (numeric)
+|      **[B.2]** <span style="color: #FF0000">NumAtoms</span> variable (numeric)
+|      **[B.3]** <span style="color: #FF0000">NumNonHAtoms</span> variable (numeric)
+|      **[B.3]** <span style="color: #FF0000">NumBonds</span> variable (numeric)
+|
+| **[C]** Subset 2
+|      **[C.1]** <span style="color: #FF0000">NumHydrogen</span> variable (numeric)
+|      **[C.2]** <span style="color: #FF0000">NumAtoms</span> variable (numeric)
+|      **[C.3]** <span style="color: #FF0000">NumNonHAtoms</span> variable (numeric)
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.3.4, warning=FALSE, message=FALSE}
+##################################
+# Loading dataset
+##################################
+DPA <- Solubility_Train
+
+##################################
+# Listing all predictors
+##################################
+DPA.Predictors <- DPA[,!names(DPA) %in% c("Log_Solubility_Class")]
+
+##################################
+# Listing all numeric predictors
+##################################
+DPA.Predictors.Numeric <- DPA.Predictors[,sapply(DPA.Predictors, is.numeric)]
+
+##################################
+# Identifying the linearly dependent variables
+##################################
+DPA_LinearlyDependent <- findLinearCombos(DPA.Predictors.Numeric)
+
+(DPA_LinearlyDependentCount <- length(DPA_LinearlyDependent$linearCombos))
+
+if (DPA_LinearlyDependentCount == 0) {
+  print("No linearly dependent predictors noted.")
+} else {
+  print(paste0("Linear dependency observed for ",
+               (DPA_LinearlyDependentCount),
+               " subset(s) of numeric variable(s)."))
+  
+  for (i in 1:DPA_LinearlyDependentCount) {
+    DPA_LinearlyDependentSubset <- colnames(DPA.Predictors.Numeric)[DPA_LinearlyDependent$linearCombos[[i]]]
+    print(paste0("Linear dependent variable(s) for subset ",
+                 i,
+                 " include: ",
+                 DPA_LinearlyDependentSubset))
+  }
+  
+}
+
+##################################
+# Identifying the linearly dependent variables for removal
+##################################
+
+if (DPA_LinearlyDependentCount > 0) {
+  DPA_LinearlyDependent <- findLinearCombos(DPA.Predictors.Numeric)
+  
+  DPA_LinearlyDependentForRemoval <- length(DPA_LinearlyDependent$remove)
+  
+  print(paste0("Linear dependency can be resolved by removing ",
+               (DPA_LinearlyDependentForRemoval),
+               " numeric variable(s)."))
+  
+  for (j in 1:DPA_LinearlyDependentForRemoval) {
+  DPA_LinearlyDependentRemovedVariable <- colnames(DPA.Predictors.Numeric)[DPA_LinearlyDependent$remove[j]]
+  print(paste0("Variable ",
+               j,
+               " for removal: ",
+               DPA_LinearlyDependentRemovedVariable))
+  }
+  
+  ##################################
+  # Filtering out columns with linear dependency
+  #################################
+  DPA_ExcludedLinearlyDependent <- DPA[,-DPA_LinearlyDependent$remove]
+  
+  ##################################
+  # Gathering descriptive statistics
+  ##################################
+  (DPA_ExcludedLinearlyDependent_Skimmed <- skim(DPA_ExcludedLinearlyDependent))
+
+}
+
+###################################
+# Verifying the data dimensions
+###################################
+dim(DPA_ExcludedLinearlyDependent)
+
+```
+
+</details>
+
+###  1.3.5 Shape Transformation
+|
+| **[A]** A number of numeric variables in the dataset were observed to be right-skewed which required shape transformation for data distribution stability. Considering that all numeric variables were strictly positive values, the <span style="color: #0000FF">BoxCox</span> method from the <mark style="background-color: #CCECFF">**caret**</mark> package was used to transform their distributional shapes.
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.3.5, warning=FALSE, message=FALSE}
+##################################
+# Loading dataset
+##################################
+DPA <- Solubility_Train
+
+##################################
+# Listing all predictors
+##################################
+DPA.Predictors <- DPA[,!names(DPA) %in% c("Log_Solubility_Class")]
+
+##################################
+# Listing all numeric predictors
+##################################
+DPA.Predictors.Numeric <- DPA.Predictors[,-(grep("FP", names(DPA.Predictors)))]
+
+##################################
+# Applying a Box-Cox transformation
+##################################
+DPA_BoxCox <- preProcess(DPA.Predictors.Numeric, method = c("BoxCox"))
+DPA_BoxCoxTransformed <- predict(DPA_BoxCox, DPA.Predictors.Numeric)
+
+##################################
+# Gathering descriptive statistics
+##################################
+(DPA_BoxCoxTransformedSkimmed <- skim(DPA_BoxCoxTransformed))
+
+###################################
+# Verifying the data dimensions
+###################################
+dim(DPA_BoxCoxTransformed)
+
+```
+
+</details>
+
+###  1.3.6 Centering and Scaling
+|
+| **[A]** To maintain numerical stability during modelling, centering and scaling transformations were applied on the transformed numeric variables. The <span style="color: #0000FF">center</span> method from the <mark style="background-color: #CCECFF">**caret**</mark> package was implemented which subtracts the average value of a numeric variable to all the values. As a result of centering, the variables had zero mean values. In addition, the <span style="color: #0000FF">scale</span> method, also from the <mark style="background-color: #CCECFF">**caret**</mark> package, was applied which performs a center transformation with each value of the variable divided by its standard deviation. Scaling the data coerced the values to have a common standard deviation of one.
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.3.6, warning=FALSE, message=FALSE}
+##################################
+# Loading dataset
+##################################
+DPA <- Solubility_Train
+
+##################################
+# Listing all predictors
+##################################
+DPA.Predictors <- DPA[,!names(DPA) %in% c("Log_Solubility_Class")]
+
+##################################
+# Listing all numeric predictors
+##################################
+DPA.Predictors.Numeric <- DPA.Predictors[,-(grep("FP", names(DPA.Predictors)))]
+
+##################################
+# Applying a Box-Cox transformation
+##################################
+DPA_BoxCox <- preProcess(DPA.Predictors.Numeric, method = c("BoxCox"))
+DPA_BoxCoxTransformed <- predict(DPA_BoxCox, DPA.Predictors.Numeric)
+
+##################################
+# Applying a center and scale data transformation
+##################################
+DPA.Predictors.Numeric_BoxCoxTransformed_CenteredScaled <- preProcess(DPA_BoxCoxTransformed, method = c("center","scale"))
+DPA.Predictors.Numeric_BoxCoxTransformed_CenteredScaledTransformed <- predict(DPA.Predictors.Numeric_BoxCoxTransformed_CenteredScaled, DPA_BoxCoxTransformed)
+
+##################################
+# Gathering descriptive statistics
+##################################
+(DPA.Predictors.Numeric_BoxCoxTransformed_CenteredScaledTransformedSkimmed <- skim(DPA.Predictors.Numeric_BoxCoxTransformed_CenteredScaledTransformed))
+
+###################################
+# Verifying the data dimensions
+###################################
+dim(DPA.Predictors.Numeric_BoxCoxTransformed_CenteredScaledTransformed)
+
+```
+
+</details>
+
+###  1.3.7 Pre-Processed Dataset
+|
+| **[A]** 1267 rows (observations)
+|      **[A.1]** Train Set = 951 observations
+|      **[A.2]** Test Set = 316 observations
+| 
+| **[B]** 221 columns (variables)
+|      **[B.1]** 1/221 response = <span style="color: #FF0000">Class</span> variable (factor)
+|             **[B.1.1]** Levels = <span style="color: #FF0000">Log_Solubility_Class=Low</span> < <span style="color: #FF0000">Log_Solubility_Class=Mid</span> < <span style="color: #FF0000">Log_Solubility_Class=High</span>
+|      **[B.2]** 220/221 predictors = All remaining variables (205/220 factor + 15/220 numeric)
+| 
+| **[C]** Pre-processing actions applied:
+|      **[C.1]** Centering, scaling and shape transformation applied to improve data quality
+|      **[C.2]** No outlier treatment applied since the high values noted were contextually valid and sensible 
+|      **[C.3]** 3 predictors removed due to zero or near-zero variance 
+|      **[C.4]** 3 predictors removed due to high correlation
+|      **[C.5]** 2 predictors removed due to linear dependencies
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.3.7, warning=FALSE, message=FALSE}
+##################################
+# Creating the pre-modelling
+# train set
+##################################
+Log_Solubility_Class <- DPA$Log_Solubility_Class 
+PMA.Predictors.Factor   <- DPA.Predictors[,(grep("FP", names(DPA.Predictors)))]
+PMA.Predictors.Factor   <- as.data.frame(lapply(PMA.Predictors.Factor,factor))
+PMA.Predictors.Numeric  <- DPA.Predictors.Numeric_BoxCoxTransformed_CenteredScaledTransformed
+PMA_BoxCoxTransformed_CenteredScaledTransformed <- cbind(Log_Solubility_Class,PMA.Predictors.Factor,PMA.Predictors.Numeric)
+
+##################################
+# Filtering out columns noted with data quality issues including
+# zero and near-zero variance,
+# high correlation and linear dependencies
+# to create the pre-modelling dataset
+##################################
+PMA_BoxCoxTransformed_CenteredScaledTransformed_ExcludedLowVariance_ExcludedLinearlyDependent_ExcludedHighCorrelation <- PMA_BoxCoxTransformed_CenteredScaledTransformed[,!names(PMA_BoxCoxTransformed_CenteredScaledTransformed) %in% c("FP154","FP199","FP200","NumNonHBonds","NumHydrogen","NumNonHAtoms","NumAromaticBonds","NumAtoms")]
+
+PMA_PreModelling_Train <- PMA_BoxCoxTransformed_CenteredScaledTransformed_ExcludedLowVariance_ExcludedLinearlyDependent_ExcludedHighCorrelation
+
+##################################
+# Gathering descriptive statistics
+##################################
+(PMA_PreModelling_Train_Skimmed <- skim(PMA_PreModelling_Train))
+
+###################################
+# Verifying the data dimensions
+# for the train set
+###################################
+dim(PMA_PreModelling_Train)
+
+##################################
+# Formulating the test set
+##################################
+DPA_Test <- Solubility_Test
+DPA_Test.Predictors <- DPA_Test[,!names(DPA_Test) %in% c("Log_Solubility_Class")]
+DPA_Test.Predictors.Numeric <- DPA_Test.Predictors[,-(grep("FP", names(DPA_Test.Predictors)))]
+DPA_Test_BoxCox <- preProcess(DPA_Test.Predictors.Numeric, method = c("BoxCox"))
+DPA_Test_BoxCoxTransformed <- predict(DPA_Test_BoxCox, DPA_Test.Predictors.Numeric)
+DPA_Test.Predictors.Numeric_BoxCoxTransformed_CenteredScaled <- preProcess(DPA_Test_BoxCoxTransformed, method = c("center","scale"))
+DPA_Test.Predictors.Numeric_BoxCoxTransformed_CenteredScaledTransformed <- predict(DPA_Test.Predictors.Numeric_BoxCoxTransformed_CenteredScaled, DPA_Test_BoxCoxTransformed)
+
+##################################
+# Creating the pre-modelling
+# test set
+##################################
+Log_Solubility_Class <- DPA_Test$Log_Solubility_Class 
+PMA_Test.Predictors.Factor   <- DPA_Test.Predictors[,(grep("FP", names(DPA_Test.Predictors)))]
+PMA_Test.Predictors.Factor   <- as.data.frame(lapply(PMA_Test.Predictors.Factor,factor))
+PMA_Test.Predictors.Numeric  <- DPA_Test.Predictors.Numeric_BoxCoxTransformed_CenteredScaledTransformed
+PMA_Test_BoxCoxTransformed_CenteredScaledTransformed <- cbind(Log_Solubility_Class,PMA_Test.Predictors.Factor,PMA_Test.Predictors.Numeric)
+PMA_Test_BoxCoxTransformed_CenteredScaledTransformed_ExcludedLowVariance_ExcludedLinearlyDependent_ExcludedHighCorrelation <- PMA_Test_BoxCoxTransformed_CenteredScaledTransformed[,!names(PMA_Test_BoxCoxTransformed_CenteredScaledTransformed) %in% c("FP154","FP199","FP200","NumNonHBonds","NumHydrogen","NumNonHAtoms","NumAromaticBonds","NumAtoms")]
+
+PMA_PreModelling_Test <- PMA_Test_BoxCoxTransformed_CenteredScaledTransformed_ExcludedLowVariance_ExcludedLinearlyDependent_ExcludedHighCorrelation
+
+##################################
+# Gathering descriptive statistics
+##################################
+(PMA_PreModelling_Test_Skimmed <- skim(PMA_PreModelling_Test))
+
+###################################
+# Verifying the data dimensions
+# for the test set
+###################################
+dim(PMA_PreModelling_Test)
+
+```
+
+</details>
+
+## 1.4 Data Exploration
+|
+| **[A]** Numeric variables which demonstrated differential relationships with the <span style="color: #FF0000">Log_Solubility_Class</span> response variable include:
+|      **[A.1]** <span style="color: #FF0000">MolWeight</span> variable (numeric)
+|      **[A.2]** <span style="color: #FF0000">NumCarbon</span> variable (numeric)
+|      **[A.3]** <span style="color: #FF0000">NumChlorine</span> variable (numeric)
+|      **[A.4]** <span style="color: #FF0000">NumHalogen</span> variable (numeric)
+|      **[A.5]** <span style="color: #FF0000">NumMultBonds</span> variable (numeric)
+|
+| **[B]** Factor variables which demonstrated relatively better differentiation of the <span style="color: #FF0000">Log_Solubility_Class</span> response variable between its <span style="color: #FF0000">1</span> and <span style="color: #FF0000">0</span> structure levels include:
+|      **[B.1]** <span style="color: #FF0000">FP207</span> variable (factor)
+|      **[B.2]** <span style="color: #FF0000">FP190</span> variable (factor)
+|      **[B.3]** <span style="color: #FF0000">FP197</span> variable (factor)
+|      **[B.4]** <span style="color: #FF0000">FP196</span> variable (factor)
+|      **[B.5]** <span style="color: #FF0000">FP193</span> variable (factor)
+|      **[B.6]** <span style="color: #FF0000">FP184</span> variable (factor)
+|      **[B.7]** <span style="color: #FF0000">FP172</span> variable (factor)
+|      **[B.8]** <span style="color: #FF0000">FP149</span> variable (factor)
+|      **[B.9]** <span style="color: #FF0000">FP112</span> variable (factor)
+|      **[B.10]** <span style="color: #FF0000">FP107</span> variable (factor)
+|      **[B.11]** <span style="color: #FF0000">FP089</span> variable (factor)
+|      **[B.12]** <span style="color: #FF0000">FP079</span> variable (factor)
+|      **[B.13]** <span style="color: #FF0000">FP076</span> variable (factor)
+|      **[B.14]** <span style="color: #FF0000">FP072</span> variable (factor)
+|      **[B.15]** <span style="color: #FF0000">FP071</span> variable (factor)
+|      **[B.16]** <span style="color: #FF0000">FP070</span> variable (factor)
+|      **[B.17]** <span style="color: #FF0000">FP065</span> variable (factor)
+|      **[B.18]** <span style="color: #FF0000">FP059</span> variable (factor)
+|      **[B.19]** <span style="color: #FF0000">FP054</span> variable (factor)
+|      **[B.20]** <span style="color: #FF0000">FP056</span> variable (factor)
+|      **[B.21]** <span style="color: #FF0000">FP053</span> variable (factor)
+|      **[B.22]** <span style="color: #FF0000">FP049</span> variable (factor)
+|      **[B.23]** <span style="color: #FF0000">FP044</span> variable (factor)
+|      **[B.24]** <span style="color: #FF0000">FP041</span> variable (factor)
+|      **[B.25]** <span style="color: #FF0000">FP039</span> variable (factor)
+|      **[B.26]** <span style="color: #FF0000">FP014</span> variable (factor)
+|      **[B.27]** <span style="color: #FF0000">FP013</span> variable (factor)
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.4, warning=FALSE, message=FALSE}
+##################################
+# Loading dataset
+##################################
+EDA <- PMA_PreModelling_Train
+
+##################################
+# Listing all predictors
+##################################
+EDA.Predictors <- EDA[,!names(EDA) %in% c("Log_Solubility_Class")]
+
+##################################
+# Listing all numeric predictors
+##################################
+EDA.Predictors.Numeric <- EDA.Predictors[,sapply(EDA.Predictors, is.numeric)]
+ncol(EDA.Predictors.Numeric)
+names(EDA.Predictors.Numeric)
+
+##################################
+# Listing all factor predictors
+##################################
+EDA.Predictors.Factor <- EDA.Predictors[,sapply(EDA.Predictors, is.factor)]
+ncol(EDA.Predictors.Factor)
+names(EDA.Predictors.Factor)
+
+##################################
+# Formulating the box plots
+##################################
+featurePlot(x = EDA.Predictors.Numeric, 
+            y = EDA$Log_Solubility_Class,
+            plot = "box",
+            scales = list(x = list(relation="free", rot = 90), 
+                          y = list(relation="free")),
+            adjust = 1.5, 
+            pch = "|")
+
+##################################
+# Restructuring the dataset for
+# for barchart analysis
+##################################
+Log_Solubility_Class <- DPA$Log_Solubility_Class
+EDA.Bar.Source <- as.data.frame(cbind(Log_Solubility_Class,
+                     EDA.Predictors.Factor))
+ncol(EDA.Bar.Source)
+
+
+##################################
+# Creating a function to formulate
+# the proportions table
+##################################
+EDA.PropTable.Function <- function(FactorVar) {
+  EDA.Bar.Source.FactorVar <- EDA.Bar.Source[,c("Log_Solubility_Class",
+                                          FactorVar)]
+  EDA.Bar.Source.FactorVar.Prop <- as.data.frame(prop.table(table(EDA.Bar.Source.FactorVar), 2))
+  names(EDA.Bar.Source.FactorVar.Prop)[2] <- "Structure"
+  EDA.Bar.Source.FactorVar.Prop$Variable <- rep(FactorVar,nrow(EDA.Bar.Source.FactorVar.Prop))
+  
+  return(EDA.Bar.Source.FactorVar.Prop)
+
+}
+
+EDA.Bar.Source.FactorVar.Prop.Group5 <- rbind(EDA.PropTable.Function(names(EDA.Bar.Source)[162]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[163]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[164]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[165]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[166]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[167]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[168]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[169]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[170]),                           
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[171]),                           
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[172]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[173]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[174]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[175]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[176]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[177]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[178]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[179]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[180]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[181]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[182]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[183]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[184]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[185]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[186]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[187]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[188]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[189]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[190]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[191]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[192]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[193]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[194]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[195]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[196]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[197]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[198]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[199]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[200]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[201]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[202]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[203]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[204]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[205]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[206]))
+
+(EDA.Barchart.FactorVar <- barchart(EDA.Bar.Source.FactorVar.Prop.Group5[,3] ~
+                                      EDA.Bar.Source.FactorVar.Prop.Group5[,2] | EDA.Bar.Source.FactorVar.Prop.Group5[,4],
+                                      data=EDA.Bar.Source.FactorVar.Prop.Group5,
+                                      groups = EDA.Bar.Source.FactorVar.Prop.Group5[,1],
+                                      stack=TRUE,
+                                      ylab = "Proportion",
+                                      xlab = "Structure",
+                                      auto.key = list(adj = 1),
+                                      layout=(c(9,5))))
+
+
+EDA.Bar.Source.FactorVar.Prop.Group4 <- rbind(EDA.PropTable.Function(names(EDA.Bar.Source)[122]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[123]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[124]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[125]),                          
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[126]),                           
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[127]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[128]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[129]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[130]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[131]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[132]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[133]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[134]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[135]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[136]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[137]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[138]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[139]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[140]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[141]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[142]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[143]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[144]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[145]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[146]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[147]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[148]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[149]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[150]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[151]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[152]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[153]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[154]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[155]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[156]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[157]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[158]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[159]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[160]),                          
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[161]))
+
+(EDA.Barchart.FactorVar <- barchart(EDA.Bar.Source.FactorVar.Prop.Group4[,3] ~
+                                      EDA.Bar.Source.FactorVar.Prop.Group4[,2] | EDA.Bar.Source.FactorVar.Prop.Group4[,4],
+                                      data=EDA.Bar.Source.FactorVar.Prop.Group4,
+                                      groups = EDA.Bar.Source.FactorVar.Prop.Group4[,1],
+                                      stack=TRUE,
+                                      ylab = "Proportion",
+                                      xlab = "Structure",
+                                      auto.key = list(adj = 1),
+                                      layout=(c(9,5))))
+
+
+EDA.Bar.Source.FactorVar.Prop.Group3 <- rbind(EDA.PropTable.Function(names(EDA.Bar.Source)[82]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[83]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[84]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[85]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[86]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[87]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[88]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[89]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[90]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[91]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[92]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[93]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[94]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[95]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[96]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[97]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[98]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[99]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[100]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[101]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[102]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[103]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[104]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[105]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[106]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[107]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[108]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[109]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[110]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[111]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[112]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[113]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[114]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[115]),                           
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[116]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[117]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[118]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[119]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[120]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[121]))
+
+(EDA.Barchart.FactorVar <- barchart(EDA.Bar.Source.FactorVar.Prop.Group3[,3] ~
+                                      EDA.Bar.Source.FactorVar.Prop.Group3[,2] | EDA.Bar.Source.FactorVar.Prop.Group3[,4],
+                                      data=EDA.Bar.Source.FactorVar.Prop.Group3,
+                                      groups = EDA.Bar.Source.FactorVar.Prop.Group3[,1],
+                                      stack=TRUE,
+                                      ylab = "Proportion",
+                                      xlab = "Structure",
+                                      auto.key = list(adj = 1),
+                                      layout=(c(9,5))))
+
+
+EDA.Bar.Source.FactorVar.Prop.Group2 <- rbind(EDA.PropTable.Function(names(EDA.Bar.Source)[42]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[43]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[44]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[45]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[46]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[47]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[48]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[49]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[50]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[51]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[52]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[53]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[54]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[55]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[56]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[57]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[58]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[59]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[60]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[61]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[62]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[63]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[64]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[65]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[66]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[67]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[68]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[69]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[70]),                            
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[71]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[72]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[73]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[74]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[75]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[76]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[77]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[78]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[79]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[80]),                            
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[81]))
+
+(EDA.Barchart.FactorVar <- barchart(EDA.Bar.Source.FactorVar.Prop.Group2[,3] ~
+                                      EDA.Bar.Source.FactorVar.Prop.Group2[,2] | EDA.Bar.Source.FactorVar.Prop.Group2[,4],
+                                      data=EDA.Bar.Source.FactorVar.Prop.Group2,
+                                      groups = EDA.Bar.Source.FactorVar.Prop.Group2[,1],
+                                      stack=TRUE,
+                                      ylab = "Proportion",
+                                      xlab = "Structure",
+                                      auto.key = list(adj = 1),
+                                      layout=(c(9,5))))
+
+
+EDA.Bar.Source.FactorVar.Prop.Group1 <- rbind(EDA.PropTable.Function(names(EDA.Bar.Source)[2]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[3]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[4]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[5]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[6]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[7]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[8]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[9]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[10]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[11]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[12]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[13]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[14]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[15]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[16]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[17]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[18]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[19]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[20]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[21]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[22]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[23]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[24]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[25]),                            
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[26]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[27]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[28]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[29]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[30]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[31]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[32]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[33]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[34]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[35]),                            
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[36]),                            
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[37]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[38]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[39]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[40]),
+                                              EDA.PropTable.Function(names(EDA.Bar.Source)[41]))
+
+(EDA.Barchart.FactorVar <- barchart(EDA.Bar.Source.FactorVar.Prop.Group1[,3] ~
+                                      EDA.Bar.Source.FactorVar.Prop.Group1[,2] | EDA.Bar.Source.FactorVar.Prop.Group1[,4],
+                                      data=EDA.Bar.Source.FactorVar.Prop.Group1,
+                                      groups = EDA.Bar.Source.FactorVar.Prop.Group1[,1],
+                                      stack=TRUE,
+                                      ylab = "Proportion",
+                                      xlab = "Structure",
+                                      auto.key = list(adj = 1),
+                                      layout=(c(9,5))))
+
+
+```
+
+</details>
+
+## 1.5 Predictive Model Development
+
+###  1.5.1 Penalized Multinomial Regression (PMR)
+|
+| [Penalized Multinomial Regression](https://link.springer.com/book/10.1007/978-0-387-21706-2) fits multinomial log-linear models via neural networks. The algorithm is structured as a neural network with a single output layer consisting of multiple neurons, each representing a different class of the response variable. The output layer applies a softmax function as an activation function ensuring that the output values of the neurons representing the different categories sum up to one and can be interpreted as probabilities for each category. During training, the model learns a set of weights for each feature, as well as a bias term for each class in the output layer. The weights and bias terms are estimated using maximum likelihood. The learned weights and biases are applied to new data to make predictions.
+|
+| **[A]** The penalized multinomial regression model from the <mark style="background-color: #CCECFF">**nnet**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
+|
+| **[B]** The model contains 1 hyperparameter:
+|      **[B.1]** <span style="color: #FF0000">decay</span> = decay made to vary across a range of 5 default values
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration involves decay=0.1000
+|      **[C.2]** Accuracy = 0.74338
+|
+| **[D]** The model allows for ranking of predictors in terms of variable importance. The top-performing predictors in the model are as follows:
+|      **[D.1]** <span style="color: #FF0000">MolWeight</span> variable (numeric)
+|      **[D.2]** <span style="color: #FF0000">FP063 (Structure=1)</span> variable (factor)
+|      **[D.3]** <span style="color: #FF0000">FP072 (Structure=1)</span> variable (factor)
+|      **[D.4]** <span style="color: #FF0000">FP159 (Structure=1)</span> variable (factor)
+|      **[D.5]** <span style="color: #FF0000">NumBonds</span> variable (numeric)
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.76582
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.1, warning=FALSE, message=FALSE}
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_PMR <- as.data.frame(lapply(PMA_PreModelling_Train[,!names(PMA_PreModelling_Train) %in%
+                                                                            c("Log_Solubility_Class")], 
+                                                   function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Train_PMR$Log_Solubility_Class <- PMA_PreModelling_Train$Log_Solubility_Class
+dim(PMA_PreModelling_Train_PMR)
+
+PMA_PreModelling_Test_PMR <- as.data.frame(lapply(PMA_PreModelling_Test[,!names(PMA_PreModelling_Test) %in%
+                                                                          c("Log_Solubility_Class")],
+                                                  function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Test_PMR$Log_Solubility_Class <- PMA_PreModelling_Test$Log_Solubility_Class
+dim(PMA_PreModelling_Test_PMR)
+
+##################################
+# Creating consistent fold assignments 
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_PMR$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+# used a range of default values
+
+##################################
+# Running the penalized multinomial regression model
+# by setting the caret method to 'multinom'
+##################################
+set.seed(12345678)
+PMR_Tune <- train(x = PMA_PreModelling_Train_PMR[,!names(PMA_PreModelling_Train_PMR) %in% c("Log_Solubility_Class")], 
+                  y = PMA_PreModelling_Train_PMR$Log_Solubility_Class,
+                  method = "multinom",
+                  metric = "Accuracy",
+                  preProc = c("center", "scale"),
+                  tuneLength = 5,
+                  trControl = KFold_Control)
+
+##################################
+# Reportingting the cross-validation results
+# for the train set
+##################################
+PMR_Tune
+
+PMR_Tune$finalModel
+
+PMR_Tune$results
+
+(PMR_Train_Accuracy <- PMR_Tune$results[PMR_Tune$results$decay==PMR_Tune$bestTune$decay,
+                              c("Accuracy")])
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+PMR_VarImp <- varImp(PMR_Tune, scale = TRUE)
+plot(PMR_VarImp, 
+     top=25, 
+     scales=list(y=list(cex = .95)),
+     main="Ranked Variable Importance : Penalized Multinomial Regression",
+     xlab="Scaled Variable Importance Metrics",
+     ylab="Predictors",
+     cex=2,
+     origin=0,
+     alpha=0.45)
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+PMR_Test <- data.frame(PMR_Observed = PMA_PreModelling_Test_PMR$Log_Solubility_Class,
+                      PMR_Predicted = predict(PMR_Tune, 
+                      PMA_PreModelling_Test_PMR[,!names(PMA_PreModelling_Test_PMR) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+PMR_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(PMR_Test_Accuracy <- Accuracy(y_pred = PMR_Test$PMR_Predicted,
+                               y_true = PMR_Test$PMR_Observed))
+
+```
+
+</details>
+
+###  1.5.2 Linear Discriminant Analysis (LDA)
+|
+| [Linear Discriminant Analysis](https://www.semanticscholar.org/paper/THE-USE-OF-MULTIPLE-MEASUREMENTS-IN-TAXONOMIC-Fisher/ab21376e43ac90a4eafd14f0f02a0c87502b6bbf) finds a linear combination of features that best separates the classes in a data set by projecting the data onto a lower-dimensional space that maximizes the separation between the classes. The algorithm searches for a set of linear discriminants that maximize the ratio of between-class variance to within-class variance by evaluating directions in the feature space that best separate the different classes of data. LDA assumes that the data has a Gaussian distribution and that the covariance matrices of the different classes are equal, in addition to the data being linearly separable by the presence of a linear decision boundary can accurately classify the different classes.
+|
+| **[A]** The linear discriminant analysis model from the  <mark style="background-color: #CCECFF">**MASS**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
+|
+| **[B]** The model does not contain any hyperparameter.
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration is fixed due to the absence of a hyperparameter
+|      **[C.2]** Accuracy = 0.72865
+|
+| **[D]** The model does not allow for ranking of predictors in terms of variable importance.
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.76899
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.2, warning=FALSE, message=FALSE}
+##################################
+# Transforming factor predictors
+# as required by the nature of the model
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_LDA <- as.data.frame(lapply(PMA_PreModelling_Train[,!names(PMA_PreModelling_Train) %in%
+                                                                            c("Log_Solubility_Class")], 
+                                                   function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Train_LDA$Log_Solubility_Class <- PMA_PreModelling_Train$Log_Solubility_Class
+dim(PMA_PreModelling_Train_LDA)
+
+PMA_PreModelling_Test_LDA <- as.data.frame(lapply(PMA_PreModelling_Test[,!names(PMA_PreModelling_Test) %in%
+                                                                          c("Log_Solubility_Class")],
+                                                  function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Test_LDA$Log_Solubility_Class <- PMA_PreModelling_Test$Log_Solubility_Class
+dim(PMA_PreModelling_Test_LDA)
+
+##################################
+# Creating consistent fold assignments 
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_LDA$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+# No hyperparameter tuning process conducted
+
+##################################
+# Running the linear discriminant analysis model
+# by setting the caret method to 'lda'
+##################################
+set.seed(12345678)
+LDA_Tune <- train(x = PMA_PreModelling_Train_LDA[,!names(PMA_PreModelling_Train_LDA) %in% c("Log_Solubility_Class")], 
+                 y = PMA_PreModelling_Train_LDA$Log_Solubility_Class,
+                 method = "lda",
+                 preProc = c("center","scale"),
+                 metric = "Accuracy",
+                 trControl = KFold_Control)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+LDA_Tune
+
+LDA_Tune$finalModel
+
+LDA_Tune$results
+
+(LDA_Train_Accuracy <- LDA_Tune$results$Accuracy)
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+# model does not support variable importance measurement
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+LDA_Test <- data.frame(LDA_Observed = PMA_PreModelling_Test_LDA$Log_Solubility_Class,
+                      LDA_Predicted = predict(LDA_Tune, 
+                      PMA_PreModelling_Test_LDA[,!names(PMA_PreModelling_Test_LDA) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+LDA_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(LDA_Test_Accuracy <- Accuracy(y_pred = LDA_Test$LDA_Predicted,
+                               y_true = LDA_Test$LDA_Observed))
+
+```
+
+</details>
+
+###  1.5.3 Flexible Discriminant Analysis (FDA)
+|
+| [Flexible Discriminant Analysis](https://www.tandfonline.com/doi/abs/10.1080/01621459.1994.10476866), as a flexible extension of the linear discriminant analysis, uses optimal scoring to transform the response variable so that the data are in a better form for linear separation, and multiple adaptive regression splines to generate the discriminant surface. The algorithm is useful to model multivariate non-normality or non-linear relationships among variables within each group, allowing for a more accurate classification.
+|
+| **[A]** The flexible discriminant analysis model from the  <mark style="background-color: #CCECFF">**earth**</mark> and  <mark style="background-color: #CCECFF">**mda**</mark> packages was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
+|
+| **[B]** The model contains 2 hyperparameters:
+|      **[B.1]** <span style="color: #FF0000">degree</span> = product degree held constant at a value of 1
+|      **[B.2]** <span style="color: #FF0000">nprune</span> = number of terms made to vary across a range of values equal to 2 to 25
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration involves degree=1 and nprune=24
+|      **[C.2]** Accuracy = 0.77500
+|
+| **[D]** The model allows for ranking of predictors in terms of variable importance. The top-performing predictors in the model are as follows:
+|      **[D.1]** <span style="color: #FF0000">MolWeight</span> variable (numeric)
+|      **[D.2]** <span style="color: #FF0000">HydrophilicFactor</span> variable (numeric)
+|      **[D.3]** <span style="color: #FF0000">SurfaceArea1</span> variable (numeric)
+|      **[D.4]** <span style="color: #FF0000">FP204 (Structure=1)</span> variable (factor)
+|      **[D.5]** <span style="color: #FF0000">NumCarbon </span> variable (numeric)
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.81962
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.3, warning=FALSE, message=FALSE}
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_FDA <- PMA_PreModelling_Train
+PMA_PreModelling_Test_FDA <- PMA_PreModelling_Test
+
+##################################
+# Creating consistent fold assignments
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_FDA$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+FDA_Grid = expand.grid(degree = 1, nprune = 2:25)
+
+##################################
+# Running the flexible discriminant analysis model
+# by setting the caret method to 'fda'
+##################################
+set.seed(12345678)
+FDA_Tune <- train(x = PMA_PreModelling_Train_FDA[,!names(PMA_PreModelling_Train_FDA) %in% c("Log_Solubility_Class")],
+                 y = PMA_PreModelling_Train_FDA$Log_Solubility_Class,
+                 method = "fda",
+                 tuneGrid = FDA_Grid,
+                 metric = "Accuracy",
+                 trControl = KFold_Control)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+FDA_Tune
+
+FDA_Tune$finalModel
+
+FDA_Tune$results
+
+(FDA_Train_Accuracy <- FDA_Tune$results[FDA_Tune$results$degree==FDA_Tune$bestTune$degree &
+                              FDA_Tune$results$nprune==FDA_Tune$bestTune$nprune,
+                              c("Accuracy")])
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+FDA_VarImp <- varImp(FDA_Tune, scale = TRUE)
+plot(FDA_VarImp,
+     top=25,
+     scales=list(y=list(cex = .95)),
+     main="Ranked Variable Importance : Flexible Discriminant Analysis",
+     xlab="Scaled Variable Importance Metrics",
+     ylab="Predictors",
+     cex=2,
+     origin=0,
+     alpha=0.45)
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+FDA_Test <- data.frame(FDA_Observed = PMA_PreModelling_Test_FDA$Log_Solubility_Class,
+                      FDA_Predicted = predict(FDA_Tune,
+                      PMA_PreModelling_Test_FDA[,!names(PMA_PreModelling_Test_FDA) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+FDA_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(FDA_Test_Accuracy <- Accuracy(y_pred = FDA_Test$FDA_Predicted,
+                               y_true = FDA_Test$FDA_Observed))
+
+```
+
+</details>
+
+###  1.5.4 Mixture Discriminant Analysis (MDA)
+|
+| [Mixture Discriminant Analysis](https://rss.onlinelibrary.wiley.com/doi/10.1111/j.2517-6161.1996.tb02073.x), as an improvement to the restrictions of the linear discriminant analysis towards having all classes coming from a single normal (or Gaussian) distribution, applies the assumption that each class is a Gaussian mixture of sub-classes. The algorithm treats each data point as having the probability of belonging to each class. Equality of covariance matrix among classes, is still assumed.
+|
+| **[A]** The mixture discriminant analysis model from the  <mark style="background-color: #CCECFF">**mda**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package.
+|
+| **[B]** The model contains 1 hyperparameter:
+|      **[B.1]** <span style="color: #FF0000">subclasses</span> = number of subclasses per class made to vary across a range of values equal to 1 to 8
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration involves subclasses=6
+|      **[C.2]** Accuracy = 0.74344
+|
+| **[D]** The model does not allow for ranking of predictors in terms of variable importance.
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.71519
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.4, warning=FALSE, message=FALSE}
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_MDA <- PMA_PreModelling_Train
+PMA_PreModelling_Test_MDA <- PMA_PreModelling_Test
+
+##################################
+# Creating consistent fold assignments
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_MDA$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+MDA_Grid = expand.grid(subclasses = 1:8)
+
+##################################
+# Running the mixture discriminant analysis model
+# by setting the caret method to 'mda'
+##################################
+set.seed(12345678)
+MDA_Tune <- train(x = PMA_PreModelling_Train_MDA[,!names(PMA_PreModelling_Train_MDA) %in% c("Log_Solubility_Class")],
+                 y = PMA_PreModelling_Train_MDA$Log_Solubility_Class,
+                 method = "mda",
+                 tuneGrid = MDA_Grid,
+                 tries = 40,
+                 metric = "Accuracy",
+                 trControl = KFold_Control)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+MDA_Tune
+
+MDA_Tune$finalModel
+
+MDA_Tune$results
+
+(MDA_Train_Accuracy <- MDA_Tune$results[MDA_Tune$results$subclasses==MDA_Tune$bestTune$subclasses,
+                              c("Accuracy")])
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+# model does not support variable importance measurement
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+MDA_Test <- data.frame(MDA_Observed = PMA_PreModelling_Test_MDA$Log_Solubility_Class,
+                      MDA_Predicted = predict(MDA_Tune,
+                      PMA_PreModelling_Test_MDA[,!names(PMA_PreModelling_Test_MDA) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+MDA_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(MDA_Test_Accuracy <- Accuracy(y_pred = MDA_Test$MDA_Predicted,
+                               y_true = MDA_Test$MDA_Observed))
+
+```
+
+</details>
+
+###  1.5.5 Naive Bayes (NB)
+|
+| [Naive Bayes Classifier](https://www.jstor.org/stable/2682766) categorizes instances by applying Bayes Theorem in determining posterior probabilities as conditioned by the likelihood of features, and prior probabilities pertaining to both events and features. The algorithm naively assumes independence between features and assigns the same weight (degree of significance) to all given features. The class conditional probabilities and the prior probabilities are calculated to yield the posterior probability, and operates by returning the class, which has the maximum posterior probability out of a group of classes.
+|
+| **[A]** The naive bayes model from the  <mark style="background-color: #CCECFF">**klaR**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package.
+|
+| **[B]** The model contains 3 hyperparameters:
+|      **[B.1]** <span style="color: #FF0000">fL</span> = laplace correction held constant at a value of 2
+|      **[B.2]** <span style="color: #FF0000">adjust</span> = bandwidth adjustment held constant at a value of FALSE
+|      **[B.3]** <span style="color: #FF0000">usekernel</span> = distribution type made to vary across a range of levels equal to TRUE and FALSE
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration involves fL=2, adjust=FALSE and usekernel=FALSE
+|      **[C.2]** Accuracy = 0.64346
+|
+| **[D]** The model does not allow for ranking of predictors in terms of variable importance.
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.65506
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.5, warning=FALSE, message=FALSE}
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_NB <- PMA_PreModelling_Train
+PMA_PreModelling_Test_NB <- PMA_PreModelling_Test
+
+##################################
+# Creating consistent fold assignments
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_NB$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+NB_Grid = data.frame(usekernel = c(TRUE, FALSE), fL = 2, adjust = FALSE)
+
+##################################
+# Running the naive bayes model
+# by setting the caret method to 'nb'
+##################################
+set.seed(12345678)
+NB_Tune <- train(x = PMA_PreModelling_Train_NB[,!names(PMA_PreModelling_Train_NB) %in% c("Log_Solubility_Class")],
+                 y = PMA_PreModelling_Train_NB$Log_Solubility_Class,
+                 method = "nb",
+                 tuneGrid = NB_Grid,
+                 metric = "Accuracy",
+                 trControl = KFold_Control)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+NB_Tune
+
+NB_Tune$finalModel
+
+NB_Tune$results
+
+(NB_Train_Accuracy <- NB_Tune$results[NB_Tune$results$usekernel==NB_Tune$bestTune$usekernel &
+                                         NB_Tune$results$adjust==NB_Tune$bestTune$adjust,
+                              c("Accuracy")])
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+# model does not support variable importance measurement
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+NB_Test <- data.frame(NB_Observed = PMA_PreModelling_Test_NB$Log_Solubility_Class,
+                      NB_Predicted = predict(NB_Tune,
+                      PMA_PreModelling_Test_NB[,!names(PMA_PreModelling_Test_NB) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+NB_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(NB_Test_Accuracy <- Accuracy(y_pred = NB_Test$NB_Predicted,
+                              y_true = NB_Test$NB_Observed))
+
+```
+
+</details>
+
+###  1.5.6 Nearest Shrunken Centroids (NSC)
+|
+| [Nearest Shrunken Centroids](https://pubmed.ncbi.nlm.nih.gov/12011421/) involve first summarizing the training dataset into a set of centroids, then using the centroids to make predictions for new instances. The algorithm shrinks the centroids of each input variable towards the centroid of the entire training data set. Those variables that are shrunk down to the value of the data centroid can then be removed as they do not help to discriminate between the class labels. The centroids in the input feature space are different for each target label which then represents the model. Given new instances, the distance between a given row of data and each centroid is calculated and the closest centroid is used to assign a class label to the example.
+|
+| **[A]** The nearest shrunken centroids model from the  <mark style="background-color: #CCECFF">**pamr**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
+|
+| **[B]** The model contains 1 hyperparameter:
+|      **[B.1]** <span style="color: #FF0000">threshold</span> = shrinkage threshold made to vary across a range of values equal to 0 to 25
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration involves threshold=1
+|      **[C.2]** Accuracy = 0.60452
+|
+| **[D]** The model allows for ranking of predictors in terms of variable importance. The top-performing predictors in the model are as follows:
+|      **[D.1]** <span style="color: #FF0000">MolWeight</span> variable (numeric)
+|      **[D.2]** <span style="color: #FF0000">NumCarbon</span> variable (numeric)
+|      **[D.3]** <span style="color: #FF0000">NumBonds</span> variable (numeric)
+|      **[D.4]** <span style="color: #FF0000">NumMultBonds</span> variable (numeric)
+|      **[D.5]** <span style="color: #FF0000">NumRings</span> variable (numeric)
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.63607
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.6, warning=FALSE, message=FALSE}
+##################################
+# Transforming factor predictors
+# as required by the nature of the model
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_NSC <- as.data.frame(lapply(PMA_PreModelling_Train[,!names(PMA_PreModelling_Train) %in%
+                                                                            c("Log_Solubility_Class")], 
+                                                   function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Train_NSC$Log_Solubility_Class <- PMA_PreModelling_Train$Log_Solubility_Class
+dim(PMA_PreModelling_Train_NSC)
+
+PMA_PreModelling_Test_NSC <- as.data.frame(lapply(PMA_PreModelling_Test[,!names(PMA_PreModelling_Test) %in%
+                                                                          c("Log_Solubility_Class")],
+                                                  function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Test_NSC$Log_Solubility_Class <- PMA_PreModelling_Test$Log_Solubility_Class
+dim(PMA_PreModelling_Test_NSC)
+
+##################################
+# Creating consistent fold assignments
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_NSC$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+NSC_Grid = data.frame(threshold = seq(0, 8, length = 9))
+
+##################################
+# Running the nearest shrunken centroids model
+# by setting the caret method to 'pam'
+##################################
+set.seed(12345678)
+NSC_Tune <- train(x = PMA_PreModelling_Train_NSC[,!names(PMA_PreModelling_Train_NSC) %in% c("Log_Solubility_Class")],
+                 y = PMA_PreModelling_Train_NSC$Log_Solubility_Class,
+                 method = "pam",
+                 tuneGrid = NSC_Grid,
+                 metric = "Accuracy",
+                 preProc = c("center", "scale"),
+                 trControl = KFold_Control)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+NSC_Tune
+
+NSC_Tune$finalModel
+
+NSC_Tune$results
+
+(NSC_Train_Accuracy <- NSC_Tune$results[NSC_Tune$results$threshold==NSC_Tune$bestTune$threshold,
+                              c("Accuracy")])
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+NSC_VarImp <- varImp(NSC_Tune, scale = TRUE)
+plot(NSC_VarImp,
+     top=25,
+     scales=list(y=list(cex = .95)),
+     main="Ranked Variable Importance : Nearest Shrunken Centroids",
+     xlab="Scaled Variable Importance Metrics",
+     ylab="Predictors",
+     cex=2,
+     origin=0,
+     alpha=0.45)
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+NSC_Test <- data.frame(NSC_Observed = PMA_PreModelling_Test_NSC$Log_Solubility_Class,
+                      NSC_Predicted = predict(NSC_Tune,
+                      PMA_PreModelling_Test_NSC[,!names(PMA_PreModelling_Test_NSC) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+NSC_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(NSC_Test_Accuracy <- Accuracy(y_pred = NSC_Test$NSC_Predicted,
+                              y_true = NSC_Test$NSC_Observed))
+
+```
+
+</details>
+
+###  1.5.7 Averaged Neural Network (AVNN)
+|
+| [Averaged Neural Networks](https://www.cambridge.org/core/books/pattern-recognition-and-neural-networks/4E038249C9BAA06C8F4EE6F044D09C5C) implement fitting of the same neural network model using different random number seeds. All the resulting models are used for prediction by averaging the model scores and translating to predicted classes. Neural networks are comprised of node layers, containing an input layer, one or more hidden layers, and an output layer. Each node, or artificial neuron, connects to another and has an associated weight and threshold. If the output of any individual node is above the specified threshold value, that node is activated, sending data to the next layer of the network. Otherwise, no data is passed along to the next layer of the network.
+|
+| **[A]** The averaged neural network model from the  <mark style="background-color: #CCECFF">**nnet**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package.
+|
+| **[B]** The model contains 3 hyperparameters:
+|      **[B.1]** <span style="color: #FF0000">size</span> = number of hidden units made to vary across a range of values equal to 1 to 13
+|      **[B.2]** <span style="color: #FF0000">decay</span> = weight decay made to vary across a range of values equal to 0.00 to 0.10
+|      **[B.3]** <span style="color: #FF0000">bag</span> = bagging held constant at a value of FALSE
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration involves size=5, decay=0 and bag=FALSE
+|      **[C.2]** Accuracy = 0.67296
+|
+| **[D]** The model does not allow for ranking of predictors in terms of variable importance.
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.65822
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.7, warning=FALSE, message=FALSE}
+##################################
+# Transforming factor predictors
+# as required by the nature of the model
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_AVNN <- as.data.frame(lapply(PMA_PreModelling_Train[,!names(PMA_PreModelling_Train) %in%
+                                                                            c("Log_Solubility_Class")], 
+                                                   function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Train_AVNN$Log_Solubility_Class <- PMA_PreModelling_Train$Log_Solubility_Class
+dim(PMA_PreModelling_Train_AVNN)
+
+PMA_PreModelling_Test_AVNN <- as.data.frame(lapply(PMA_PreModelling_Test[,!names(PMA_PreModelling_Test) %in%
+                                                                          c("Log_Solubility_Class")],
+                                                  function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Test_AVNN$Log_Solubility_Class <- PMA_PreModelling_Test$Log_Solubility_Class
+dim(PMA_PreModelling_Test_AVNN)
+
+##################################
+# Creating consistent fold assignments
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_AVNN$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+AVNN_Grid = expand.grid(decay = c(0.00, 0.01, 0.10), 
+                        size = c(1, 5, 9, 13), 
+                        bag = FALSE)
+maxSize <- max(AVNN_Grid$size)
+
+##################################
+# Running the averaged neural network model
+# by setting the caret method to 'avNNet'
+##################################
+set.seed(12345678)
+AVNN_Tune <- train(x = PMA_PreModelling_Train_AVNN[,!names(PMA_PreModelling_Train_AVNN) %in% c("Log_Solubility_Class")],
+                 y = PMA_PreModelling_Train_AVNN$Log_Solubility_Class,
+                 method = "avNNet",
+                 tuneGrid = AVNN_Grid,
+                 metric = "Accuracy",                 
+                 preProc = c("center", "scale"),
+                 trControl = KFold_Control,
+                 maxit = 5,
+                 repeats = 10,
+                 allowParallel = FALSE,
+                 MaxNWts = 10*(maxSize * (length(PMA_PreModelling_Train_AVNN) + 1) + maxSize + 1),
+                 trace = FALSE)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+AVNN_Tune
+
+AVNN_Tune$finalModel
+
+AVNN_Tune$results
+
+(AVNN_Train_Accuracy <- AVNN_Tune$results[AVNN_Tune$results$decay==AVNN_Tune$bestTune$decay &
+                              AVNN_Tune$results$size==AVNN_Tune$bestTune$size,
+                              c("Accuracy")])
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+# model does not support variable importance measurement
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+AVNN_Test <- data.frame(AVNN_Observed = PMA_PreModelling_Test_AVNN$Log_Solubility_Class,
+                      AVNN_Predicted = predict(AVNN_Tune,
+                      PMA_PreModelling_Test_AVNN[,!names(PMA_PreModelling_Test_AVNN) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+AVNN_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(AVNN_Test_Accuracy <- Accuracy(y_pred = AVNN_Test$AVNN_Predicted,
+                                y_true = AVNN_Test$AVNN_Observed))
+
+```
+
+</details>
+
+###  1.5.8 Support Vector Machine - Radial Basis Function Kernel (SVM_R)
+|
+| [Support Vector Machine](https://dl.acm.org/doi/10.1145/130385.130401) plots each observation in an N-dimensional space corresponding to the number of features in the data set and finds a hyperplane that maximally separates the different classes by a maximally large margin (which is defined as the distance between the hyperplane and the closest data points from each class). The algorithm applies kernel transformation by mapping non-linearly separable data using the similarities between the points in a high-dimensional feature space for improved discrimination.
+|
+| **[A]** The support vector machine (radial basis function kernel) model from the  <mark style="background-color: #CCECFF">**kernlab**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
+|
+| **[B]** The model contains 2 hyperparameters:
+|      **[B.1]** <span style="color: #FF0000">sigma</span> = sigma held constant at a value of 0.00285
+|      **[B.2]** <span style="color: #FF0000">C</span> = cost made to vary across a range of 14 default values
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration involves sigma=0.00285 and C=8
+|      **[C.2]** Accuracy = 0.79802
+|
+| **[D]** The model does not allow for ranking of predictors in terms of variable importance.
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.79114
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.8, warning=FALSE, message=FALSE}
+##################################
+# Transforming factor predictors
+# as required by the nature of the model
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_SVM_R <- as.data.frame(lapply(PMA_PreModelling_Train[,!names(PMA_PreModelling_Train) %in%
+                                                                            c("Log_Solubility_Class")], 
+                                                   function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Train_SVM_R$Log_Solubility_Class <- PMA_PreModelling_Train$Log_Solubility_Class
+dim(PMA_PreModelling_Train_SVM_R)
+
+PMA_PreModelling_Test_SVM_R <- as.data.frame(lapply(PMA_PreModelling_Test[,!names(PMA_PreModelling_Test) %in%
+                                                                          c("Log_Solubility_Class")],
+                                                  function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Test_SVM_R$Log_Solubility_Class <- PMA_PreModelling_Test$Log_Solubility_Class
+dim(PMA_PreModelling_Test_SVM_R)
+
+##################################
+# Creating consistent fold assignments
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_SVM_R$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+# used a range of default values
+
+##################################
+# Running the support vector machine (radial basis function kernel) model
+# by setting the caret method to 'svmRadial'
+##################################
+set.seed(12345678)
+SVM_R_Tune <- train(x = PMA_PreModelling_Train_SVM_R[,!names(PMA_PreModelling_Train_SVM_R) %in% c("Log_Solubility_Class")],
+                 y = PMA_PreModelling_Train_SVM_R$Log_Solubility_Class,
+                 method = "svmRadial",
+                 tuneLength = 14,
+                 metric = "Accuracy",                 
+                 preProc = c("center", "scale"),
+                 trControl = KFold_Control)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+SVM_R_Tune
+
+SVM_R_Tune$finalModel
+
+SVM_R_Tune$results
+
+(SVM_R_Train_Accuracy <- SVM_R_Tune$results[SVM_R_Tune$results$C==SVM_R_Tune$bestTune$C,
+                              c("Accuracy")])
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+# model does not support variable importance measurement
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+SVM_R_Test <- data.frame(SVM_R_Observed = PMA_PreModelling_Test_SVM_R$Log_Solubility_Class,
+                      SVM_R_Predicted = predict(SVM_R_Tune,
+                      PMA_PreModelling_Test_SVM_R[,!names(PMA_PreModelling_Test_SVM_R) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+SVM_R_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(SVM_R_Test_Accuracy <- Accuracy(y_pred = SVM_R_Test$SVM_R_Predicted, 
+                                 y_true = SVM_R_Test$SVM_R_Observed))
+
+```
+
+</details>
+
+###  1.5.9 Support Vector Machine - Polynomial Kernel (SVM_P)
+|
+| [Support Vector Machine](https://dl.acm.org/doi/10.1145/130385.130401) plots each observation in an N-dimensional space corresponding to the number of features in the data set and finds a hyperplane that maximally separates the different classes by a maximally large margin (which is defined as the distance between the hyperplane and the closest data points from each class). The algorithm applies kernel transformation by mapping non-linearly separable data using the similarities between the points in a high-dimensional feature space for improved discrimination.
+|
+| **[A]** The support vector machine (polynomial kernel) model from the  <mark style="background-color: #CCECFF">**kernlab**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
+|
+| **[B]** The model contains 3 hyperparameters:
+|      **[B.1]** <span style="color: #FF0000">degree</span> = polynomial degree made to vary across a range of values equal to 1 to 2
+|      **[B.2]** <span style="color: #FF0000">scale</span> = scale made to vary across a range of values equal to 0.001 to 0.010
+|      **[B.3]** <span style="color: #FF0000">C</span> = cost made to vary across a range of values equal to 0.25 to 32.00
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration involves degree=2, scale=0.010 and C=1
+|      **[C.2]** Accuracy = 0.79597
+|
+| **[D]** The model does not allow for ranking of predictors in terms of variable importance.
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.78797
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.9, warning=FALSE, message=FALSE}
+##################################
+# Transforming factor predictors
+# as required by the nature of the model
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_SVM_P <- as.data.frame(lapply(PMA_PreModelling_Train[,!names(PMA_PreModelling_Train) %in%
+                                                                            c("Log_Solubility_Class")], 
+                                                   function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Train_SVM_P$Log_Solubility_Class <- PMA_PreModelling_Train$Log_Solubility_Class
+dim(PMA_PreModelling_Train_SVM_P)
+
+PMA_PreModelling_Test_SVM_P <- as.data.frame(lapply(PMA_PreModelling_Test[,!names(PMA_PreModelling_Test) %in%
+                                                                          c("Log_Solubility_Class")],
+                                                  function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Test_SVM_P$Log_Solubility_Class <- PMA_PreModelling_Test$Log_Solubility_Class
+dim(PMA_PreModelling_Test_SVM_P)
+
+##################################
+# Creating consistent fold assignments
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_SVM_P$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+SVM_P_Grid = expand.grid(degree = 1:2, 
+                       scale = c(0.01, 0.005, 0.001), 
+                       C = 2^(-2:5))
+
+##################################
+# Running the support vector machine (polynomial kernel) model
+# by setting the caret method to 'svmPoly'
+##################################
+set.seed(12345678)
+SVM_P_Tune <- train(x = PMA_PreModelling_Train_SVM_P[,!names(PMA_PreModelling_Train_SVM_P) %in% c("Log_Solubility_Class")],
+                 y = PMA_PreModelling_Train_SVM_P$Log_Solubility_Class,
+                 method = "svmPoly",
+                 tuneGrid = SVM_P_Grid,
+                 metric = "Accuracy",                 
+                 preProc = c("center", "scale"),
+                 trControl = KFold_Control)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+SVM_P_Tune
+
+SVM_P_Tune$finalModel
+
+SVM_P_Tune$results
+
+(SVM_P_Train_Accuracy <- SVM_P_Tune$results[SVM_P_Tune$results$degree==SVM_P_Tune$bestTune$degree &
+                                                 SVM_P_Tune$results$scale==SVM_P_Tune$bestTune$scale &
+                                                 SVM_P_Tune$results$C==SVM_P_Tune$bestTune$C,
+                              c("Accuracy")])
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+# model does not support variable importance measurement
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+SVM_P_Test <- data.frame(SVM_P_Observed = PMA_PreModelling_Test_SVM_P$Log_Solubility_Class,
+                      SVM_P_Predicted = predict(SVM_P_Tune,
+                      PMA_PreModelling_Test_SVM_P[,!names(PMA_PreModelling_Test_SVM_P) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+SVM_P_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(SVM_P_Test_Accuracy <- Accuracy(y_pred = SVM_P_Test$SVM_P_Predicted, 
+                                 y_true = SVM_P_Test$SVM_P_Observed))
+
+```
+
+</details>
+
+###  1.5.10 K-Nearest Neighbors (KNN)
+|
+| [K-Nearest Neighbors](https://ieeexplore.ieee.org/document/1053964) use proximity to make predictions about the class grouping of an individual data point. The algorithm examines the labels of a chosen number of data points surrounding a target data point given a distance-based similarity metric, in order to make a prediction about the class that the data point falls into. The process involves setting a value for the chosen number of neighbors, calculating the distance between the target point across all instances, sorting the calculated distances, obtaining the labels of the top entries and returning the prediction for the target point.
+|
+| **[A]** The k-nearest neighbors model was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
+|
+| **[B]** The model contains 1 hyperparameter:
+|      **[B.1]** <span style="color: #FF0000">k</span> = number of neighbors made to vary across a range of values equal to 1 to 15
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration involves k=1
+|      **[C.2]** Accuracy = 0.69096
+|
+| **[D]** The model does not allow for ranking of predictors in terms of variable importance.
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.66772
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.10, warning=FALSE, message=FALSE}
+##################################
+# Transforming factor predictors
+# as required by the nature of the model
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_KNN <- as.data.frame(lapply(PMA_PreModelling_Train[,!names(PMA_PreModelling_Train) %in%
+                                                                            c("Log_Solubility_Class")], 
+                                                   function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Train_KNN$Log_Solubility_Class <- PMA_PreModelling_Train$Log_Solubility_Class
+dim(PMA_PreModelling_Train_KNN)
+
+PMA_PreModelling_Test_KNN <- as.data.frame(lapply(PMA_PreModelling_Test[,!names(PMA_PreModelling_Test) %in%
+                                                                          c("Log_Solubility_Class")],
+                                                  function(x) as.numeric(as.character(x))))
+PMA_PreModelling_Test_KNN$Log_Solubility_Class <- PMA_PreModelling_Test$Log_Solubility_Class
+dim(PMA_PreModelling_Test_KNN)
+
+##################################
+# Creating consistent fold assignments
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_KNN$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+KNN_Grid = data.frame(k = 1:15)
+
+##################################
+# Running the k-nearest neighbors model
+# by setting the caret method to 'knn'
+##################################
+set.seed(12345678)
+KNN_Tune <- train(x = PMA_PreModelling_Train_KNN[,!names(PMA_PreModelling_Train_KNN) %in% c("Log_Solubility_Class")],
+                 y = PMA_PreModelling_Train_KNN$Log_Solubility_Class,
+                 method = "knn",
+                 tuneGrid = KNN_Grid,
+                 metric = "Accuracy",                 
+                 preProc = c("center", "scale"),
+                 trControl = KFold_Control)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+KNN_Tune
+
+KNN_Tune$finalModel
+
+KNN_Tune$results
+
+(KNN_Train_Accuracy <- KNN_Tune$results[KNN_Tune$results$k==KNN_Tune$bestTune$k,
+                              c("Accuracy")])
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+# model does not support variable importance measurement
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+KNN_Test <- data.frame(KNN_Observed = PMA_PreModelling_Test_KNN$Log_Solubility_Class,
+                      KNN_Predicted = predict(KNN_Tune,
+                      PMA_PreModelling_Test_KNN[,!names(PMA_PreModelling_Test_KNN) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+KNN_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(KNN_Test_Accuracy <- Accuracy(y_pred = KNN_Test$KNN_Predicted, 
+                               y_true = KNN_Test$KNN_Observed))
+
+```
+
+</details>
+
+###  1.5.11 Classification and Regression Trees (CART)
+|
+| [Classification and Regression Trees](https://www.semanticscholar.org/paper/Classification-and-Regression-Trees-Breiman-Friedman/8017699564136f93af21575810d557dba1ee6fc6) construct binary trees for both both nominal and continuous input attributes using Gini Index as its splitting criteria. The algorithm handles missing values by surrogating tests to approximate outcomes. In the pruning phase, CART uses pre-pruning technique called Cost-Complexity pruning to remove redundant branches from the decision tree to improve the accuracy. In the first stage, a sequence of increasingly smaller trees are built on the training data. In the second stage, one of these tree is chosen as the pruned tree, based on its classification accuracy on a pruning set, adopting a cross-validated method in its pruning technique.
+|
+| **[A]** The classification and regression trees model from the  <mark style="background-color: #CCECFF">**rpart**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
+|
+| **[B]** The model contains 1 hyperparameter:
+|      **[B.1]** <span style="color: #FF0000">cp</span> = complexity parameter threshold made to vary across a range of values equal to 0.001 to 0.020
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration involves cp=0.010
+|      **[C.2]** Accuracy = 0.74878
+|
+| **[D]** The model allows for ranking of predictors in terms of variable importance. The top-performing predictors in the model are as follows:
+|      **[D.1]** <span style="color: #FF0000">MolWeight</span> variable (numeric)
+|      **[D.2]** <span style="color: #FF0000">NumCarbon</span> variable (numeric)
+|      **[D.3]** <span style="color: #FF0000">NumBonds</span> variable (numeric)
+|      **[D.4]** <span style="color: #FF0000">SurfaceArea1</span> variable (numeric)
+|      **[D.5]** <span style="color: #FF0000">SurfaceArea2</span> variable (numeric)
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.79746
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.11, warning=FALSE, message=FALSE}
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_CART <- PMA_PreModelling_Train
+PMA_PreModelling_Test_CART <- PMA_PreModelling_Test
+
+##################################
+# Creating consistent fold assignments
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_CART$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+CART_Grid = data.frame(cp = c(0.001, 0.005, 0.010, 0.015, 0.020))
+
+##################################
+# Running the classification and regression trees model
+# by setting the caret method to 'rpart'
+##################################
+set.seed(12345678)
+CART_Tune <- train(x = PMA_PreModelling_Train_CART[,!names(PMA_PreModelling_Train_CART) %in% c("Log_Solubility_Class")],
+                 y = PMA_PreModelling_Train_CART$Log_Solubility_Class,
+                 method = "rpart",
+                 tuneGrid = CART_Grid,
+                 metric = "Accuracy",
+                 trControl = KFold_Control)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+CART_Tune
+
+CART_Tune$finalModel
+
+CART_Tune$results
+
+(CART_Train_Accuracy <- CART_Tune$results[CART_Tune$results$cp==CART_Tune$bestTune$cp,
+                              c("Accuracy")])
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+CART_VarImp <- varImp(CART_Tune, scale = TRUE)
+plot(CART_VarImp,
+     top=25,
+     scales=list(y=list(cex = .95)),
+     main="Ranked Variable Importance : Classification and Regression Trees",
+     xlab="Scaled Variable Importance Metrics",
+     ylab="Predictors",
+     cex=2,
+     origin=0,
+     alpha=0.45)
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+CART_Test <- data.frame(CART_Observed = PMA_PreModelling_Test_CART$Log_Solubility_Class,
+                      CART_Predicted = predict(CART_Tune,
+                      PMA_PreModelling_Test_CART[,!names(PMA_PreModelling_Test_CART) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+CART_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(CART_Test_Accuracy <- Accuracy(y_pred = CART_Test$CART_Predicted, 
+                               y_true = CART_Test$CART_Observed))
+
+```
+
+</details>
+
+###  1.5.12 Conditional Inference Trees (CTREE)
+|
+| [Conditional Inference Trees](https://www.tandfonline.com/doi/abs/10.1198/106186006X133933) use recursive partitioning of features based on the value of correlations in  conditional inference framework - compensating against overfitting and a selection bias towards features with many possible splits or missing values thus avoiding biasing and vulnerability to the errors making the method more flexible for the problems in the data. The algorithm applies a significance test which is a permutation test that selects input features to split and recurse, calculating the p-value in the process. The distribution of the test statistic under the null hypothesis is obtained by calculating all possible values of the test statistic under rearrangements of the classes on the observed data points.
+|
+| **[A]** The conditional inference trees model from the  <mark style="background-color: #CCECFF">**party**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
+|
+| **[B]** The model contains 1 hyperparameter:
+|      **[B.1]** <span style="color: #FF0000">mincriterion</span> = 1-p-value threshold made to vary across a range of values equal to 0.75 to 0.99
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration involves mincriterion=0.75
+|      **[C.2]** Accuracy = 0.73185
+|
+| **[D]** The model allows for ranking of predictors in terms of variable importance. The top-performing predictors in the model are as follows:
+|      **[D.1]** <span style="color: #FF0000">NumCarbon</span> variable (numeric)
+|      **[D.2]** <span style="color: #FF0000">MolWeight</span> variable (numeric)
+|      **[D.3]** <span style="color: #FF0000">NumBonds</span> variable (numeric)
+|      **[D.4]** <span style="color: #FF0000">NumRings</span> variable (numeric)
+|      **[D.5]** <span style="color: #FF0000">NumMultBonds</span> variable (numeric)
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.79430
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.12, warning=FALSE, message=FALSE}
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_CTREE <- PMA_PreModelling_Train
+PMA_PreModelling_Test_CTREE <- PMA_PreModelling_Test
+
+##################################
+# Creating consistent fold assignments
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_CTREE$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+CTREE_Grid = data.frame(mincriterion = sort(c(0.95, seq(0.75, 0.99, length = 2))))
+
+##################################
+# Running the conditional inference trees model
+# by setting the caret method to 'ctree'
+##################################
+set.seed(12345678)
+CTREE_Tune <- train(x = PMA_PreModelling_Train_CTREE[,!names(PMA_PreModelling_Train_CTREE) %in% c("Log_Solubility_Class")],
+                 y = PMA_PreModelling_Train_CTREE$Log_Solubility_Class,
+                 method = "ctree",
+                 tuneGrid = CTREE_Grid,
+                 metric = "Accuracy",
+                 trControl = KFold_Control)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+CTREE_Tune
+
+CTREE_Tune$finalModel
+
+CTREE_Tune$results
+
+(CTREE_Train_Accuracy <- CTREE_Tune$results[CTREE_Tune$results$mincriterion==CTREE_Tune$bestTune$mincriterion,
+                              c("Accuracy")])
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+CTREE_VarImp <- varImp(CTREE_Tune, scale = TRUE)
+plot(CTREE_VarImp,
+     top=25,
+     scales=list(y=list(cex = .95)),
+     main="Ranked Variable Importance : Conditional Inference Trees",
+     xlab="Scaled Variable Importance Metrics",
+     ylab="Predictors",
+     cex=2,
+     origin=0,
+     alpha=0.45)
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+CTREE_Test <- data.frame(CTREE_Observed = PMA_PreModelling_Test_CTREE$Log_Solubility_Class,
+                      CTREE_Predicted = predict(CTREE_Tune,
+                      PMA_PreModelling_Test_CTREE[,!names(PMA_PreModelling_Test_CTREE) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+CTREE_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(CTREE_Test_Accuracy <- Accuracy(y_pred = CTREE_Test$CTREE_Predicted, 
+                               y_true = CTREE_Test$CTREE_Observed))
+
+```
+
+</details>
+
+###  1.5.13 C5.0 Decision Trees (C50)
+|
+| [C5.0 Decision Trees](https://link.springer.com/article/10.1007/BF00993309) generate multi-branch trees in a situation where one or more nominal inputs are given, using an information-based criterion (Entropy and Information Gain) as an attribute selection measure to build decision trees. For overfitting avoidance, the algorithm applies a pessimistic pruning approach called Rule-post pruning, to remove unreliable branches from the decision tree to reduce the size of the tree without any loss of its predictive accuracy. The Rule-post pruning starts off by converting a decision tree to an equivalent set of rules, then based on statistical confidence estimations for error rate it evaluates the rules with the aim of simplifying them without affecting the accuracy, adopting the Binomial Confidence Limit method. In a case of handling missing values, the algorithm allows to whether estimate missing values as a function of other attributes or apportions the case probabilistically among the results.
+|
+| **[A]** The C5.0 decision trees model from the  <mark style="background-color: #CCECFF">**C50**</mark> and <mark style="background-color: #CCECFF">**plyr**</mark> packages was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
+|
+| **[B]** The model contains 3 hyperparameters:
+|      **[B.1]** <span style="color: #FF0000">trials</span> = number of boosting iterations made to vary across a range of values equal to 1 to 100
+|      **[B.2]** <span style="color: #FF0000">model</span> = model type made to vary across a range of levels equal to TREE and RULES
+|      **[B.3]** <span style="color: #FF0000">winnow</span> = winnow made to vary across a range of levels equal to TRUE and FALSE
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration involves trials=100, method=TREE and winnow=TRUE
+|      **[C.2]** Accuracy = 0.80650
+|
+| **[D]** The model allows for ranking of predictors in terms of variable importance. The top-performing predictors in the model are as follows:
+|      **[D.1]** <span style="color: #FF0000">NumOxygen</span> variable (numeric)
+|      **[D.2]** <span style="color: #FF0000">HydrophilicFactor</span> variable (numeric)
+|      **[D.3]** <span style="color: #FF0000">NumHalogen</span> variable (numeric)
+|      **[D.4]** <span style="color: #FF0000">NumUltBonds</span> variable (numeric)
+|      **[D.5]** <span style="color: #FF0000">FP059</span> variable (factor)
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.79746
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.13, warning=FALSE, message=FALSE}
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_C50 <- PMA_PreModelling_Train
+PMA_PreModelling_Test_C50 <- PMA_PreModelling_Test
+
+##################################
+# Creating consistent fold assignments
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_C50$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+C50_Grid = expand.grid(trials = c(1:9, (1:10)*10),
+                       model = c("tree", "rules"),
+                       winnow = c(TRUE, FALSE))
+
+##################################
+# Running the C5.0 decision trees model
+# by setting the caret method to 'C5.0'
+##################################
+set.seed(12345678)
+C50_Tune <- train(x = PMA_PreModelling_Train_C50[,!names(PMA_PreModelling_Train_C50) %in% c("Log_Solubility_Class")],
+                 y = PMA_PreModelling_Train_C50$Log_Solubility_Class,
+                 method = "C5.0",
+                 tuneGrid = C50_Grid,
+                 metric = "Accuracy",
+                 trControl = KFold_Control)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+C50_Tune
+
+C50_Tune$finalModel
+
+C50_Tune$results
+
+(C50_Train_Accuracy <- C50_Tune$results[C50_Tune$results$trials==C50_Tune$bestTune$trials & 
+                                             C50_Tune$results$model==C50_Tune$bestTune$model &
+                                             C50_Tune$results$winnow==C50_Tune$bestTune$winnow,
+                              c("Accuracy")])
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+C50_VarImp <- varImp(C50_Tune, scale = TRUE)
+plot(C50_VarImp,
+     top=25,
+     scales=list(y=list(cex = .95)),
+     main="Ranked Variable Importance : C5.0 Decision Trees",
+     xlab="Scaled Variable Importance Metrics",
+     ylab="Predictors",
+     cex=2,
+     origin=0,
+     alpha=0.45)
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+C50_Test <- data.frame(C50_Observed = PMA_PreModelling_Test_C50$Log_Solubility_Class,
+                      C50_Predicted = predict(C50_Tune,
+                      PMA_PreModelling_Test_C50[,!names(PMA_PreModelling_Test_C50) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+C50_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(C50_Test_Accuracy <- Accuracy(y_pred = C50_Test$C50_Predicted, 
+                               y_true = C50_Test$C50_Observed))
+
+```
+
+</details>
+
+###  1.5.14 Random Forest (RF)
+|
+| [Random Forest](https://link.springer.com/article/10.1023/A:1010933404324) is an ensemble learning method made up of a large set of small decision trees called estimators, with each producing its own prediction. The random forest model aggregates the predictions of the estimators to produce a more accurate prediction. The algorithm involves bootstrap aggregating (where smaller subsets of the training data are repeatedly subsampled with replacement), random subspacing (where a subset of features are sampled and used to train each individual estimator), estimator training (where unpruned decision trees are formulated for each estimator) and inference by aggregating the predictions of all estimators.
+|
+| **[A]** The random forest model from the  <mark style="background-color: #CCECFF">**randomForest**</mark> package was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package.
+|
+| **[B]** The model contains 1 hyperparameter:
+|      **[B.1]** <span style="color: #FF0000">mtry</span> = number of randomly selected predictors made to vary across a range of values equal to 25 to 125
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration involves mtry=125
+|      **[C.2]** Accuracy = 0.82131
+|
+| **[D]** The model allows for ranking of predictors in terms of variable importance. The top-performing predictors in the model are as follows:
+|      **[D.1]** <span style="color: #FF0000">MolWeight</span> variable (numeric)
+|      **[D.2]** <span style="color: #FF0000">NumCarbon</span> variable (numeric)
+|      **[D.3]** <span style="color: #FF0000">HydroPhilicFactor</span> variable (numeric)
+|      **[D.4]** <span style="color: #FF0000">NumBonds</span> variable (numeric)
+|      **[D.5]** <span style="color: #FF0000">SurfaceArea1</span> variable (numeric)
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.83861
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.14, warning=FALSE, message=FALSE}
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_RF <- PMA_PreModelling_Train
+PMA_PreModelling_Test_RF <- PMA_PreModelling_Test
+
+##################################
+# Creating consistent fold assignments
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_RF$Log_Solubility_Class,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+RF_Grid = data.frame(mtry = c(25,75,125))
+
+##################################
+# Running the random forest model
+# by setting the caret method to 'rf'
+##################################
+set.seed(12345678)
+RF_Tune <- train(x = PMA_PreModelling_Train_RF[,!names(PMA_PreModelling_Train_RF) %in% c("Log_Solubility_Class")],
+                 y = PMA_PreModelling_Train_RF$Log_Solubility_Class,
+                 method = "rf",
+                 tuneGrid = RF_Grid,
+                 metric = "Accuracy",
+                 trControl = KFold_Control)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+RF_Tune
+
+RF_Tune$finalModel
+
+RF_Tune$results
+
+(RF_Train_Accuracy <- RF_Tune$results[RF_Tune$results$mtry==RF_Tune$bestTune$mtry,
+                              c("Accuracy")])
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+RF_VarImp <- varImp(RF_Tune, scale = TRUE)
+plot(RF_VarImp,
+     top=25,
+     scales=list(y=list(cex = .95)),
+     main="Ranked Variable Importance : Random Forest",
+     xlab="Scaled Variable Importance Metrics",
+     ylab="Predictors",
+     cex=2,
+     origin=0,
+     alpha=0.45)
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+RF_Test <- data.frame(RF_Observed = PMA_PreModelling_Test_RF$Log_Solubility_Class,
+                      RF_Predicted = predict(RF_Tune,
+                      PMA_PreModelling_Test_RF[,!names(PMA_PreModelling_Test_RF) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+RF_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(RF_Test_Accuracy <- Accuracy(y_pred = RF_Test$RF_Predicted, 
+                              y_true = RF_Test$RF_Observed))
+
+```
+
+</details>
+
+###  1.5.15 Bagged Trees (BTREE)
+|
+| [Bagged Trees](https://link.springer.com/article/10.1007/BF00058655) combine bootstrapping and decision trees to construct an ensemble. The modeling process involves generating bootstrap samples of the original data, training an unpruned decision tree for each bootstrap subset of the data and implementing an ensemble voting for all the individual decision tree predictions to formulate the final prediction. The bootstrap aggregation (bagging) mechanism improves the model performance by reducing variance. Although the individual decision trees in the model are identically distributed, they are not necessarily independent and share similar structure. This similarity, known as tree correlation, is an essential factor that prevents further reduction of variance.
+|
+| **[A]** The bagged trees model from the <mark style="background-color: #CCECFF">**ipred**</mark>, <mark style="background-color: #CCECFF">**plyr**</mark> and <mark style="background-color: #CCECFF">**e1071**</mark> packages was implemented through the <mark style="background-color: #CCECFF">**caret**</mark> package. 
+|
+| **[B]** The model does not contain any hyperparameter.
+|
+| **[C]** The cross-validated model performance of the final model is summarized as follows:
+|      **[C.1]** Final model configuration is fixed due to the absence of a hyperparameter
+|      **[C.2]** Accuracy = 0.81078
+|
+| **[D]** The model allows for ranking of predictors in terms of variable importance. The top-performing predictors in the model are as follows:
+|      **[D.1]** <span style="color: #FF0000">MolWeight</span> variable (numeric)
+|      **[D.2]** <span style="color: #FF0000">NumCarbon</span> variable (numeric)
+|      **[D.3]** <span style="color: #FF0000">NumBonds</span> variable (numeric)
+|      **[D.4]** <span style="color: #FF0000">SurfaceArea1</span> variable (numeric)
+|      **[D.5]** <span style="color: #FF0000">HydrophilicFactor</span> variable (numeric)
+|
+| **[E]** The independent test model performance of the final model is summarized as follows:
+|      **[E.1]** Accuracy = 0.81329
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.5.15, warning=FALSE, message=FALSE}
+##################################
+# Creating a local object
+# for the train and test sets
+##################################
+PMA_PreModelling_Train_BTREE <- PMA_PreModelling_Train
+PMA_PreModelling_Test_BTREE <- PMA_PreModelling_Test
+
+##################################
+# Creating consistent fold assignments 
+# for the 10-Fold Cross Validation process
+##################################
+set.seed(12345678)
+KFold_Indices <- createFolds(PMA_PreModelling_Train_BTREE$Log_Solubility,
+                             k = 10,
+                             returnTrain=TRUE)
+KFold_Control <- trainControl(method="cv",
+                              index=KFold_Indices,
+                              summaryFunction = multiClassSummary,
+                              classProbs = TRUE)
+
+##################################
+# Setting the conditions
+# for hyperparameter tuning
+##################################
+# No hyperparameter tuning process conducted
+
+##################################
+# Running the bagged trees model
+# by setting the caret method to 'treebag'
+##################################
+set.seed(12345678)
+BTREE_Tune <- train(x = PMA_PreModelling_Train_BTREE[,!names(PMA_PreModelling_Train_BTREE) %in% c("Log_Solubility_Class")], 
+                 y = PMA_PreModelling_Train_BTREE$Log_Solubility_Class,
+                 method = "treebag",
+                 nbagg = 50,
+                 metric = "Accuracy",
+                 trControl = KFold_Control)
+
+##################################
+# Reporting the cross-validation results
+# for the train set
+##################################
+BTREE_Tune
+
+BTREE_Tune$finalModel
+
+BTREE_Tune$results
+
+(BTREE_Train_Accuracy <- BTREE_Tune$results$Accuracy)
+
+##################################
+# Identifying and plotting the
+# best model predictors
+##################################
+BTREE_VarImp <- varImp(BTREE_Tune, scale = TRUE)
+plot(BTREE_VarImp, 
+     top=25, 
+     scales=list(y=list(cex = .95)),
+     main="Ranked Variable Importance : Bagged Trees",
+     xlab="Scaled Variable Importance Metrics",
+     ylab="Predictors",
+     cex=2,
+     origin=0,
+     alpha=0.45)
+
+##################################
+# Independently evaluating the model
+# on the test set
+##################################
+BTREE_Test <- data.frame(BTREE_Observed = PMA_PreModelling_Test_BTREE$Log_Solubility_Class,
+                      BTREE_Predicted = predict(BTREE_Tune, 
+                      PMA_PreModelling_Test_BTREE[,!names(PMA_PreModelling_Test_BTREE) %in% c("Log_Solubility_Class")],
+                      type = "raw"))
+
+BTREE_Test
+
+##################################
+# Reporting the independent evaluation results
+# for the test set
+##################################
+(BTREE_Test_Accuracy <- Accuracy(y_pred = BTREE_Test$BTREE_Predicted, 
+                                 y_true = BTREE_Test$BTREE_Observed))
+
+```
+
+</details>
+
+##  1.6 Consolidated Findings
+|
+| **[A]** The models which demonstrated the best and most consistent Accuracy metrics are as follows:
+|      **[A.1]** **RF: Random Forest** (<mark style="background-color: #CCECFF">**randomForest**</mark> package)
+|             **[A.2.1]** Cross-Validation Accuracy = 0.82131
+|             **[A.2.2]** Test Accuracy = 0.83861 
+|      **[A.2]** **BTREE: Bagged Trees** (<mark style="background-color: #CCECFF">**ipred**</mark>, <mark style="background-color: #CCECFF">**plyr**</mark> and <mark style="background-color: #CCECFF">**e1071**</mark> packages)
+|             **[A.2.1]** Cross-Validation Accuracy = 0.81078
+|             **[A.2.2]** Test Accuracy = 0.81329 
+|      **[A.3]** **C50: C5.0 Decision Trees** (<mark style="background-color: #CCECFF">**C50**</mark> and <mark style="background-color: #CCECFF">**plyr**</mark> packages)
+|             **[A.3.1]** Cross-Validation Accuracy = 0.80650
+|             **[A.3.2]** Test Accuracy = 0.79746 
+|
+|
+
+<details><summary><mark style="background-color: #000000;color: #FFFFFF">**Code Chunk | Output**</mark></summary>
+
+```{r section_1.6, warning=FALSE, message=FALSE}
+##################################
+# Consolidating all evaluation results
+# for the train and test sets
+# using the ROC Curve AUC metric
+##################################
+Model <- c('PMR','LDA','FDA','MDA','NB','NSC','AVNN','SVM_R','SVM_P','KNN','CART','CTREE','C50','RF','BTREE',
+           'PMR','LDA','FDA','MDA','NB','NSC','AVNN','SVM_R','SVM_P','KNN','CART','CTREE','C50','RF','BTREE')
+
+Set <- c(rep('Cross-Validation',15),rep('Test',15))
+
+Accuracy <- c(PMR_Train_Accuracy,LDA_Train_Accuracy,FDA_Train_Accuracy,MDA_Train_Accuracy,NB_Train_Accuracy,
+               NSC_Train_Accuracy,AVNN_Train_Accuracy,SVM_R_Train_Accuracy,SVM_P_Train_Accuracy,KNN_Train_Accuracy,
+               CART_Train_Accuracy,CTREE_Train_Accuracy,C50_Train_Accuracy,RF_Train_Accuracy,BTREE_Train_Accuracy,
+               PMR_Test_Accuracy,LDA_Test_Accuracy,FDA_Test_Accuracy,MDA_Test_Accuracy,NB_Test_Accuracy,
+               NSC_Test_Accuracy,AVNN_Test_Accuracy,SVM_R_Test_Accuracy,SVM_P_Test_Accuracy,KNN_Test_Accuracy,
+               CART_Test_Accuracy,CTREE_Test_Accuracy,C50_Test_Accuracy,RF_Test_Accuracy,BTREE_Test_Accuracy)
+
+Accuracy_Summary <- as.data.frame(cbind(Model,Set,Accuracy))
+
+Accuracy_Summary$Accuracy <- as.numeric(as.character(Accuracy_Summary$Accuracy))
+Accuracy_Summary$Set <- factor(Accuracy_Summary$Set,
+                                        levels = c("Cross-Validation",
+                                                   "Test"))
+Accuracy_Summary$Model <- factor(Accuracy_Summary$Model,
+                                        levels = c("PMR",
+                                                   "LDA",
+                                                   "FDA",
+                                                   "MDA",
+                                                   "NB",
+                                                   "NSC",
+                                                   "AVNN",
+                                                   "SVM_R",
+                                                   "SVM_P",
+                                                   "KNN",
+                                                   "CART",
+                                                   "CTREE",
+                                                   "C50",
+                                                   "RF",
+                                                   "BTREE"))
+
+print(Accuracy_Summary, row.names=FALSE)
+
+(Accuracy_Plot <- dotplot(Model ~ Accuracy,
+                           data = Accuracy_Summary,
+                           groups = Set,
+                           main = "Classification Model Performance Comparison",
+                           ylab = "Model",
+                           xlab = "Accuracy",
+                           auto.key = list(adj = 1),
+                           type=c("p", "h"),       
+                           origin = 0,
+                           alpha = 0.45,
+                           pch = 16,
+                           cex = 2))
+
+```
+
+</details>
+|
+# **2. Summary** <a name="summary"></a>
+|
+| ![](D:/Github_Codes/ProjectPortfolio/Portfolio_Project_11/docs/Project11_Summary.png)
+|
+# **3. References**
+|
+| **[Book]** [Applied Predictive Modeling](http://appliedpredictivemodeling.com/) by Max Kuhn and Kjell Johnson
+| **[Book]** [An Introduction to Statistical Learning](https://www.statlearning.com/) by Gareth James, Daniela Witten, Trevor Hastie and Rob Tibshirani
+| **[Book]** [An Introduction to Statistical Learning](https://www.statlearning.com/) by Gareth James, Daniela Witten, Trevor Hastie and Rob Tibshirani
+| **[Book]** [Multivariate Data Visualization with R](http://lmdvr.r-forge.r-project.org/figures/figures.html) by Deepayan Sarkar
+| **[Book]** [Machine Learning](https://bookdown.org/ssjackson300/Machine-Learning-Lecture-Notes/) by Samuel Jackson
+| **[Book]** [Data Modeling Methods](https://bookdown.org/larget_jacob/data-modeling-methods/) by Jacob Larget
+| **[Book]** [Regression Modeling Strategies](https://link.springer.com/book/10.1007/978-1-4757-3462-1) by Frank Harrel
+| **[Book]** [Pattern Recognition and Neural Networks](https://www.cambridge.org/core/books/pattern-recognition-and-neural-networks/4E038249C9BAA06C8F4EE6F044D09C5C) by Brian Ripley
+| **[Book]** [Modern Applied Statistics with S](https://link.springer.com/book/10.1007/978-0-387-21706-2) by William Venables and Brian Ripley
+| **[R Package]** [AppliedPredictiveModeling](https://cran.r-project.org/web//packages/AppliedPredictiveModeling/AppliedPredictiveModeling.pdf) by Max Kuhn
+| **[R Package]** [caret](https://topepo.github.io/caret/index.html) by Max Kuhn
+| **[R Package]** [rpart](https://mran.microsoft.com/web/packages/rpart/rpart.pdf) by Terry Therneau and Beth Atkinson
+| **[R Package]** [lattice](https://cran.r-project.org/web/packages/lattice/lattice.pdf) by  Deepayan Sarkar
+| **[R Package]** [dplyr](https://cran.r-project.org/web/packages/dplyr/index.html/) by Hadley Wickham
+| **[R Package]** [moments](https://cran.r-project.org/web/packages/moments/index.html) by Lukasz Komsta and Frederick
+| **[R Package]** [skimr](https://cran.r-project.org/web/packages/skimr/skimr.pdf) by  Elin Waring
+| **[R Package]** [RANN](https://cran.r-project.org/web/packages/RANN/RANN.pdf) by  Sunil Arya, David Mount, Samuel Kemp and Gregory Jefferis
+| **[R Package]** [corrplot](https://cran.r-project.org/web/packages/corrplot/corrplot.pdf) by Taiyun Wei
+| **[R Package]** [tidyverse](https://cran.r-project.org/web/packages/tidyverse/tidyverse.pdf) by Hadley Wickham
+| **[R Package]** [lares](https://cran.rstudio.com/web/packages/lares/lares.pdf) by Bernardo Lares
+| **[R Package]** [DMwR](https://mran.microsoft.com/snapshot/2016-05-02/web/packages/DMwR/DMwR.pdf) by Luis Torgo
+| **[R Package]** [gridExtra](https://cran.r-project.org/web/packages/gridExtra/gridExtra.pdf) by Baptiste Auguie and Anton Antonov
+| **[R Package]** [rattle](https://cran.r-project.org/web/packages/rattle/rattle.pdf) by Graham Williams
+| **[R Package]** [rpart.plot](https://cran.r-project.org/web/packages/rpart.plot/rpart.plot.pdf) by Stephen Milborrow
+| **[R Package]** [RColorBrewer](https://cran.r-project.org/web//packages/RColorBrewer/RColorBrewer.pdf) by Erich Neuwirth
+| **[R Package]** [stats](https://search.r-project.org/R/refmans/stats/html/00Index.html) by R Core Team
+| **[R Package]** [pls](https://cran.r-project.org/web/packages/pls/pls.pdf) by Kristian Hovde Liland
+| **[R Package]** [nnet](https://cran.r-project.org/web/packages/nnet/nnet.pdf) by Brian Ripley
+| **[R Package]** [elasticnet](https://cran.r-project.org/web/packages/elasticnet/elasticnet.pdf) by Hui Zou
+| **[R Package]** [earth](https://cran.r-project.org/web/packages/earth/earth.pdf) by Stephen Milborrow
+| **[R Package]** [party](https://cran.r-project.org/web/packages/party/party.pdf) by Torsten Hothorn
+| **[R Package]** [kernlab](https://cran.r-project.org/web/packages/kernlab/kernlab.pdf) by Alexandros Karatzoglou
+| **[R Package]** [randomForest](https://cran.r-project.org/web/packages/randomForest/randomForest.pdf) by Andy Liaw
+| **[R Package]** [pROC](https://cran.r-project.org/web/packages/pROC/pROC.pdf) by Xavier Robin
+| **[R Package]** [mda](https://cran.r-project.org/web/packages/mda/mda.pdf) by Trevor Hastie
+| **[R Package]** [klaR](https://cran.r-project.org/web/packages/klaR/klaR.pdf) by Christian Roever, Nils Raabe, Karsten Luebke, Uwe Ligges, Gero Szepannek, Marc Zentgraf and David Meyer
+| **[R Package]** [pamr](https://cran.r-project.org/web/packages/pamr/pamr.pdf) by Trevor Hastie, Rob Tibshirani, Balasubramanian Narasimhan and Gil Chu
+| **[Article]** [The caret Package](https://topepo.github.io/caret/index.html) by Max Kuhn
+| **[Article]** [A Short Introduction to the caret Package](https://cran.r-project.org/web/packages/caret/vignettes/caret.html) by Max Kuhn
+| **[Article]** [Caret Package – A Practical Guide to Machine Learning in R](https://www.machinelearningplus.com/machine-learning/caret-package/#:~:text=Caret%20is%20short%20for%20Classification%20And%20REgression%20Training.,track%20of%20which%20algorithm%20resides%20in%20which%20package.) by Selva Prabhakaran
+| **[Article]** [Tuning Machine Learning Models Using the Caret R Package](https://machinelearningmastery.com/tuning-machine-learning-models-using-the-caret-r-package/) by Jason Brownlee
+| **[Article]** [Lattice Graphs](http://www.sthda.com/english/wiki/lattice-graphs) by Alboukadel Kassambara
+| **[Article]** [A Tour of Machine Learning Algorithms](https://machinelearningmastery.com/a-tour-of-machine-learning-algorithms/) by Jason Brownlee
+| **[Article]** [Decision Tree Algorithm Examples In Data Mining](https://www.softwaretestinghelp.com/decision-tree-algorithm-examples-data-mining/) by Software Testing Help Team
+| **[Article]** [4 Types of Classification Tasks in Machine Learning](https://machinelearningmastery.com/types-of-classification-in-machine-learning/) by Jason Brownlee
+| **[Article]** [Spot-Check Classification Machine Learning Algorithms in Python with scikit-learn](https://machinelearningmastery.com/spot-check-classification-machine-learning-algorithms-python-scikit-learn/) by Jason Brownlee
+| **[Article]** [Feature Engineering and Selection: A Practical Approach for Predictive Models](http://www.feat.engineering/index.html) by Max Kuhn and Kjell Johnson
+| **[Article]** [An Introduction to Naive Bayes Algorithm for Beginners](https://www.turing.com/kb/an-introduction-to-naive-bayes-algorithm-for-beginners) by Turing Team
+| **[Article]** [Machine Learning Tutorial: A Step-by-Step Guide for Beginners](http://www.feat.engineering/index.html) by Mayank Banoula
+| **[Article]** [Nearest Shrunken Centroids With Python](https://machinelearningmastery.com/nearest-shrunken-centroids-with-python/) by Jason Brownlee
+| **[Article]** [Discriminant Analysis Essentials in R](http://www.sthda.com/english/articles/36-classification-methods-essentials/146-discriminant-analysis-essentials-in-r/) by Alboukadel Kassambara
+| **[Article]** [Linear Discriminant Analysis, Explained](https://yangxiaozhou.github.io/data/2019/10/02/linear-discriminant-analysis.html) by Xiaozhou Yang
+| **[Article]** [Flexible Discriminant Analysis](https://support.bccvl.org.au/support/solutions/articles/6000083206-flexible-discriminant-analysis#:~:text=Flexible%20Discriminant%20Analysis%20is%20a%20classification%20model%20based,adaptive%20regression%20splines%20to%20generate%20the%20discriminant%20surface.) by BCCVL Team
+| **[Article]** [Classification Tree](https://support.bccvl.org.au/support/solutions/articles/6000083204-classification-tree) by BCCVL Team
+| **[Article]** [Random Forest](https://support.bccvl.org.au/support/solutions/articles/6000083217-random-forest) by BCCVL Team
+| **[Article]** [Boosted Regression Tree](https://support.bccvl.org.au/support/solutions/articles/6000083202-boosted-regression-tree) by BCCVL Team
+| **[Article]** [Artificial Neural Network](https://support.bccvl.org.au/support/solutions/articles/6000083200-artificial-neural-network) by BCCVL Team
+| **[Article]** [Generalized Linear Model](https://support.bccvl.org.au/support/solutions/articles/6000083213-generalized-linear-model) by BCCVL Team
+| **[Article]** [Generalized Boosting Model](https://support.bccvl.org.au/support/solutions/articles/6000083212-generalized-boosting-model) by BCCVL Team
+| **[Article]** [Conditional Inference Trees in R Programming](https://www.geeksforgeeks.org/conditional-inference-trees-in-r-programming/) by Geeks for Geeks Team
+| **[Article]** [C5.0: An Informal Tutorial](https://www.rulequest.com/see5-unix.html) by RuleQuest Team
+| **[Article]** [What is Nearest Shrunken Centroid Classification?](https://www.tibshirani.su.domains/PAM/Rdist/howwork.html) by Rob Tibshirani
+| **[Article]** [K-Nearest Neighbors Algorithm](https://www.ibm.com/topics/knn#:~:text=The%20k-nearest%20neighbors%20algorithm%2C%20also%20known%20as%20KNN,about%20the%20grouping%20of%20an%20individual%20data%20point.) by IBM Team
+| **[Publication]** [The Origins of Logistic Regression](http://dx.doi.org/10.2139/ssrn.360300) by JS Cramer (Econometrics eJournal)
+| **[Publication]** [The Use of Multiple Measurements in Taxonomic Problems](https://www.semanticscholar.org/paper/THE-USE-OF-MULTIPLE-MEASUREMENTS-IN-TAXONOMIC-Fisher/ab21376e43ac90a4eafd14f0f02a0c87502b6bbf) by Ronald Fisher (Annals of Human Genetics)
+| **[Publication]** [Flexible Discriminant Analysis by Optimal Scoring](https://www.tandfonline.com/doi/abs/10.1080/01621459.1994.10476866) by Trevor Hastie, Robert Tibshirani and Andreas Buja (Journal of the American Statistical Association)
+| **[Publication]** [Discriminant Analysis by Gaussian Mixtures](https://rss.onlinelibrary.wiley.com/doi/10.1111/j.2517-6161.1996.tb02073.x) by Trevor Hastie and Robert Tibshirani (Journal of the Royal Statistical Society)
+| **[Publication]** [Who Discovered Bayes's Theorem?](https://www.jstor.org/stable/2682766) by Stephen Stigler (The American Statistician)
+| **[Publication]** [Diagnosis of Multiple Cancer Types by Shrunken Centroids of Gene Expression](https://pubmed.ncbi.nlm.nih.gov/12011421/) by Robert Tibshirani, Trevor Hastie, Balasubramanian Narasimhan and Gilbert Chu (Proceedings of the National Academy of Sciences of the United States of America)
+| **[Publication]** [A Training Algorithm for Optimal Margin Classifiers](https://dl.acm.org/doi/10.1145/130385.130401) by Bernhard Boser, Isabelle Guyon and Vladimir Vapnik (Proceedings of the Fifth Annual Workshop on Computational Learning Theory)
+| **[Publication]** [Nearest Neighbor Pattern Classification](https://ieeexplore.ieee.org/document/1053964) Thomas Cover and Peter Hart (IEEE Transactions on Information Theory)
+| **[Publication]** [Classification and Regression Trees](https://www.semanticscholar.org/paper/Classification-and-Regression-Trees-Breiman-Friedman/8017699564136f93af21575810d557dba1ee6fc6) by Leo Breiman, Jerome Friedman, Richard Olshen, and Charles Stone (Computer Science)
+| **[Publication]** [Unbiased Recursive Partitioning: A Conditional Inference Framework](https://www.tandfonline.com/doi/abs/10.1198/106186006X133933) by Torsten Hothorn, Kurt Hornik and Achim Zeileis (Journal of Computational and Graphical Statistics)
+| **[Publication]** [C4.5: Programs for Machine Learning](https://link.springer.com/article/10.1007/BF00993309) by Ross Quinlan (Machine Learning)
+| **[Publication]** [Random Forest ](https://link.springer.com/article/10.1023/A:1010933404324) by Leo Breiman (Machine Learning)
+| **[Publication]** [Bagging Predictors](https://link.springer.com/article/10.1007/BF00058655) by Leo Breiman (Machine Learning)
+| **[Course]** [Applied Data Mining and Statistical Learning](https://online.stat.psu.edu/stat508/) by Penn State Eberly College of Science
+| **[Course]** [Regression Methods](https://online.stat.psu.edu/stat501/) by Penn State Eberly College of Science
+| **[Course]** [Applied Regression Analysis](https://online.stat.psu.edu/stat462/) by Penn State Eberly College of Science
+| **[Course]** [Applied Data Mining and Statistical Learning](https://online.stat.psu.edu/stat508/) by Penn State Eberly College of Science
+|
+|
+|
+|
